@@ -30,7 +30,7 @@ APP_VERSION = str(int(time.time()))
 
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
-    "script-src 'self' https://pyscript.net 'unsafe-eval'; "
+    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
