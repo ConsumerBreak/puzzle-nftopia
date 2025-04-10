@@ -49,10 +49,12 @@ def add_headers(response):
     return response
 
 try:
-    logger.debug("Loading Google Sheets credentials from /app/creds.json")
-    with open('/app/creds.json', 'r') as f:
-        creds_dict = json.load(f)
-    logger.info("Successfully loaded credentials from /app/creds.json")
+    logger.debug("Loading Google Sheets credentials from GOOGLE_CREDENTIALS environment variable")
+    creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+    if not creds_json:
+        raise EnvironmentError("GOOGLE_CREDENTIALS environment variable not set")
+    creds_dict = json.loads(creds_json)
+    logger.info("Successfully loaded credentials from GOOGLE_CREDENTIALS")
 except Exception as e:
     logger.error(f"Error loading Google Sheets credentials: {e}")
     raise
