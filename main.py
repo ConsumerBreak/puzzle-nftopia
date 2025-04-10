@@ -35,7 +35,7 @@ CSP_HEADER = (
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self';"
+    "connect-src 'self' https://cdn.jsdelivr.net;"
 )
 
 @app.after_request
