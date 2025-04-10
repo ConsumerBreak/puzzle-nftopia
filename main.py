@@ -48,6 +48,8 @@ def add_headers(response):
     logger.info(f"Response headers for {request.path}: {dict(response.headers)}")
     return response
 
+from google.oauth2.service_account import Credentials
+
 try:
     logger.debug("Loading Google Sheets credentials from GOOGLE_CREDENTIALS environment variable")
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
@@ -60,7 +62,7 @@ except Exception as e:
     raise
 
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 client = gspread.authorize(creds)
 
 SPREADSHEET_ID = '1Z4HvlFc0gssCh9TxWkSvc2VugARjlphHMCpSJFB2kuo'
