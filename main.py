@@ -1,6 +1,7 @@
 import os
 import random
 import json
+import aiohttp
 from flask import Flask, Response, send_file
 from twitchio.ext import commands
 import threading
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Content Security Policy header - Added https://pypi.org for micropip package fetching
+# Content Security Policy header
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -109,9 +110,9 @@ def exponential_backoff(func, max_retries=5, base_delay=1):
 class GameState:
     def __init__(self, bot):
         self.bot = bot
-        self.images = [f"puzzle{i:02d}.png" for i in range(1, 8)]  # puzzle01.png to puzzle07.png
+        self.images = []
         self.image_index = 0
-        self.current_image = self.images[self.image_index] if self.images else None
+        self.current_image = None
         self.pieces = {}
         self.guesses = {}
         self.current_piece = None
@@ -128,7 +129,34 @@ class GameState:
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
         self.max_prize = 50  # Default from Replit
+        # Initialize images by checking available puzzles
+        asyncio.run_coroutine_threadsafe(self.initialize_images(), asyncio.get_event_loop())
         self.initialize_puzzle()
+
+    async def initialize_images(self):
+        """Dynamically determine available puzzle images by attempting to fetch them."""
+        self.images = []
+        i = 1
+        async with aiohttp.ClientSession() as session:
+            while True:
+                image_name = f"puzzle{i:02d}_00000.png"
+                url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
+                try:
+                    async with session.head(url) as response:
+                        if response.status == 200:
+                            self.images.append(image_name)
+                            logger.info(f"Found puzzle image: {image_name}")
+                            i += 1
+                        else:
+                            logger.info(f"No more puzzle images found after {image_name}, stopping at {i-1} puzzles")
+                            break
+                except Exception as e:
+                    logger.error(f"Error checking puzzle image {image_name}: {str(e)}")
+                    break
+        if not self.images:
+            logger.warning("No puzzle images found, using a placeholder")
+            self.images = ["placeholder.png"]
+        self.current_image = self.images[0]
 
     def load_leaderboard_from_sheet(self):
         global leaderboard_cache, leaderboard_cache_timestamp
@@ -143,10 +171,13 @@ class GameState:
                 try:
                     sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
                     records = sheet.get_all_values()
+                    logger.info(f"Fetched records from sheet: {records}")
                     if not records or len(records) < 1:
+                        logger.info("Sheet is empty, initializing with header")
                         sheet.append_row(['Username', 'Wins'])
                         return {}
                     if records[0] != ['Username', 'Wins']:
+                        logger.info("Sheet header incorrect, resetting sheet")
                         sheet.clear()
                         sheet.append_row(['Username', 'Wins'])
                         return {}
@@ -159,6 +190,7 @@ class GameState:
                             except (ValueError, IndexError):
                                 wins = 0
                             leaderboard[username] = wins
+                    logger.info(f"Parsed leaderboard: {leaderboard}")
                     return leaderboard
                 except Exception as e:
                     logger.error(f"Failed to fetch leaderboard: {str(e)}")
@@ -222,7 +254,7 @@ class GameState:
             self.expected_coord = self.index_to_coord(self.natural_section)
         if self.images:
             self.current_image = self.images[self.image_index]
-            self.image_index = (self.image_index + 1) % len(self.images)
+            self.image_index = (self.image_index + 1) % len(self.images)  # Cycle through all available puzzles
         self.game_id += 1
         self.piece_id += 1
         self.notify_state_update()
@@ -421,6 +453,10 @@ def health_check():
 async def event_ready():
     logger.info("Bot connected to nftopia!")
 
+@bot.event()
+async def event_error(error, data):
+    logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
+
 @bot.command(name='g')
 async def guess_command(ctx):
     try:
@@ -492,10 +528,21 @@ async def test_win_command(ctx):
         logger.error(f"ERROR in test_win_command: {str(e)}")
         await ctx.send("An error occurred while triggering the test win event.")
 
-# Start the bot with a delay
+# Start the bot with a delay and error handling
 async def start_bot_with_delay():
     await asyncio.sleep(5)
-    await bot.start()
+    try:
+        logger.info("Attempting to start Twitch bot...")
+        await bot.start()
+    except Exception as e:
+        logger.error(f"Failed to start Twitch bot: {str(e)}")
+        # Retry connection after a delay
+        await asyncio.sleep(10)
+        logger.info("Retrying Twitch bot connection...")
+        try:
+            await bot.start()
+        except Exception as e:
+            logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.")
 
 if __name__ == '__main__':
     logger.info("Main script starting")
