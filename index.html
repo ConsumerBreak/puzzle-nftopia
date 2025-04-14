@@ -99,33 +99,34 @@
             win_audio2.play()
         else:
             win_audio.play()
-
-    # Run initialization
-    await initialize()
     </py-script>
 
     <script>
-    // Wait for PyScript to load before binding the button
-    document.addEventListener("pyscript-ready", function() {
+    document.addEventListener("pyscript-ready", async function() {
+        // Initialize PyScript code
+        await pyscript.runtime.globals.get("initialize")();
+
+        // Bind the start button
         const startButton = document.getElementById("start-button");
         startButton.onclick = function() {
             pyscript.runtime.globals.get("start_game")();
         };
-    });
 
-    async function pollForUpdates() {
-        try {
-            const response = await fetch('/guess/A1');
-            const data = await response.json();
-            if (data.status === "correct") {
-                pyscript.runtime.globals.get('update_image')();
+        // Start polling for updates
+        async function pollForUpdates() {
+            try {
+                const response = await fetch('/guess/A1');
+                const data = await response.json();
+                if (data.status === "correct") {
+                    pyscript.runtime.globals.get('update_image')();
+                }
+            } catch (error) {
+                console.error("Error polling for updates:", error);
             }
-        } catch (error) {
-            console.error("Error polling for updates:", error);
+            setTimeout(pollForUpdates, 1000);
         }
-        setTimeout(pollForUpdates, 1000);
-    }
-    pollForUpdates();
+        pollForUpdates();
+    });
     </script>
 </body>
 </html>
