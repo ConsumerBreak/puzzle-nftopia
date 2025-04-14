@@ -4,7 +4,6 @@ import json
 import aiohttp
 from flask import Flask, Response, send_file
 from twitchio.ext import commands
-import threading
 import queue
 import asyncio
 import logging
@@ -129,11 +128,9 @@ class GameState:
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
         self.max_prize = 50  # Default from Replit
-        # Run initialize_images synchronously during init
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Run initialize_images synchronously using the current event loop
+        loop = asyncio.get_event_loop()
         loop.run_until_complete(self.initialize_images())
-        loop.close()
         self.initialize_puzzle()
 
     async def initialize_images(self):
@@ -162,6 +159,7 @@ class GameState:
             self.images = ["placeholder.png"]
         self.current_image = self.images[0] if self.images else "placeholder.png"
         logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
+        logger.info(f"Set initial current_image to: {self.current_image}")
 
     def load_leaderboard_from_sheet(self):
         global leaderboard_cache, leaderboard_cache_timestamp
@@ -257,9 +255,14 @@ class GameState:
             self.natural_section = self.section_mapping[self.current_piece]
             self.expected_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
+        # Only update current_image if images are available, and cycle through them
         if self.images:
+            logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
             self.current_image = self.images[self.image_index]
             self.image_index = (self.image_index + 1) % len(self.images)
+            logger.info(f"After setting current_image: current_image={self.current_image}, image_index={self.image_index}")
+        else:
+            self.current_image = "placeholder.png"
         self.game_id += 1
         self.piece_id += 1
         self.notify_state_update()
@@ -386,7 +389,7 @@ class GameState:
     def get_state(self):
         leaderboard = self.load_leaderboard_from_sheet()
         sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
-        return {
+        state = {
             'pieces': self.pieces,
             'guesses': self.guesses,
             'current_piece': self.current_piece,
@@ -403,6 +406,8 @@ class GameState:
             'minPrize': self.min_prize,
             'maxPrize': self.max_prize
         }
+        logger.info(f"Returning game state with current_image: {self.current_image}")
+        return state
 
     def notify_state_update(self):
         try:
@@ -552,8 +557,11 @@ async def start_bot_with_delay():
 if __name__ == '__main__':
     logger.info("Main script starting")
     logger.info("Starting Flask on port 10000")
-    loop = asyncio.get_event_loop()
+    # Create a new event loop for the Flask app
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     logger.info("Starting Twitch bot with delay...")
     loop.create_task(start_bot_with_delay())
     logger.info("Twitch bot task created")
-    app.run(host='0.0.0.0', port=10000)
+    # Run Flask in a way that integrates with the event loop
+    app.run(host='0.0.0.0', port=10000, use_reloader=False)
