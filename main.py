@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Content Security Policy header - Added blob: to connect-src
+# Content Security Policy header
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -129,7 +129,11 @@ class GameState:
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
         self.max_prize = 50  # Default from Replit
-        # Defer image initialization until the event loop is running
+        # Run initialize_images synchronously during init
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.initialize_images())
+        loop.close()
         self.initialize_puzzle()
 
     async def initialize_images(self):
@@ -142,6 +146,7 @@ class GameState:
                 url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
                 try:
                     async with session.head(url) as response:
+                        logger.info(f"Checking image {image_name}: HTTP Status {response.status}")
                         if response.status == 200:
                             self.images.append(image_name)
                             logger.info(f"Found puzzle image: {image_name}")
@@ -155,7 +160,7 @@ class GameState:
         if not self.images:
             logger.warning("No puzzle images found, using a placeholder")
             self.images = ["placeholder.png"]
-        self.current_image = self.images[0]
+        self.current_image = self.images[0] if self.images else "placeholder.png"
         logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
 
     def load_leaderboard_from_sheet(self):
@@ -528,27 +533,21 @@ async def test_win_command(ctx):
         logger.error(f"ERROR in test_win_command: {str(e)}")
         await ctx.send("An error occurred while triggering the test win event.")
 
-# Start the bot and initialize images with a delay
+# Start the bot with a delay and error handling
 async def start_bot_with_delay():
     await asyncio.sleep(5)
     try:
         logger.info("Attempting to start Twitch bot...")
         await bot.start()
     except Exception as e:
-        logger.error(f"Failed to start Twitch bot: {str(e)}")
+        logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
         # Retry connection after a delay
         await asyncio.sleep(10)
         logger.info("Retrying Twitch bot connection...")
         try:
             await bot.start()
         except Exception as e:
-            logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.")
-
-async def initialize_game_state():
-    await asyncio.sleep(1)  # Ensure the event loop is running
-    logger.info("Initializing puzzle images...")
-    await game_state.initialize_images()
-    game_state.notify_state_update()
+            logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.", exc_info=True)
 
 if __name__ == '__main__':
     logger.info("Main script starting")
@@ -556,6 +555,5 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     logger.info("Starting Twitch bot with delay...")
     loop.create_task(start_bot_with_delay())
-    loop.create_task(initialize_game_state())
-    logger.info("Twitch bot and game state initialization tasks created")
+    logger.info("Twitch bot task created")
     app.run(host='0.0.0.0', port=10000)
