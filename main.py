@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Content Security Policy header
+# Content Security Policy header - Added https://cdn.jsdelivr.net for PyScript
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
-    "script-src 'self' https://pyscript.net 'unsafe-eval' 'unsafe-inline'; "
+    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
@@ -109,7 +109,6 @@ def exponential_backoff(func, max_retries=5, base_delay=1):
 class GameState:
     def __init__(self, bot):
         self.bot = bot
-        # Use a list of puzzle names (matching Glitch CDN)
         self.images = [f"puzzle{i:02d}.png" for i in range(1, 8)]  # puzzle01.png to puzzle07.png
         self.image_index = 0
         self.current_image = self.images[self.image_index] if self.images else None
