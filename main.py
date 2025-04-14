@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Content Security Policy header - Added https://cdn.jsdelivr.net for connect-src
+# Content Security Policy header - Added https://pypi.org for micropip package fetching
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -28,7 +28,7 @@ CSP_HEADER = (
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org;"
 )
 
 # Check for required environment variables
