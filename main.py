@@ -17,16 +17,16 @@ app = Flask(__name__)
 
 # Content Security Policy header
 CSP_HEADER = (
-    "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
-    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+    "default-src 'self' https://cdn.glitch.global; "
+    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org;"
+    "connect-src 'self';"
 )
 
-# Load Google Sheets credentials from environment variable
+# Load Google Sheets credentials
 try:
     logger.debug("Loading Google Sheets credentials from GOOGLE_CREDENTIALS environment variable")
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
@@ -42,7 +42,7 @@ scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open the spreadsheet using the spreadsheet ID
+# Open the spreadsheet
 spreadsheet = client.open_by_key("1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU")
 worksheet = spreadsheet.get_worksheet(0)
 
@@ -124,11 +124,15 @@ async def guess_command(ctx):
     else:
         await ctx.send(f"Incorrect guess by {ctx.author.name}. Try again!")
 
+async def start_bot_with_delay():
+    await asyncio.sleep(5)  # Delay to ensure Flask server starts first
+    await bot.start()
+
 if __name__ == '__main__':
     logger.info("Main script starting")
     logger.info("Starting Flask on port 10000")
     loop = asyncio.get_event_loop()
-    logger.info("Starting Twitch bot...")
-    loop.create_task(bot.start())
+    logger.info("Starting Twitch bot with delay...")
+    loop.create_task(start_bot_with_delay())
     logger.info("Twitch bot task created")
     app.run(host='0.0.0.0', port=10000)
