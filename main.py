@@ -447,8 +447,8 @@ def sse():
                 event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
                 logger.info(f"Sending SSE ping event: {json.dumps(event)}")
                 yield f"data: {json.dumps(event)}\n\n"
-            except (BrokenPipeError, ConnectionError):
-                logger.info("SSE client disconnected, closing connection")
+            except (BrokenPipeError, ConnectionError, OSError) as e:
+                logger.info(f"SSE client disconnected: {str(e)}")
                 break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
@@ -518,7 +518,7 @@ async def main():
     # Twitch bot commands (defined after bot creation)
     @bot.event()
     async def event_ready():
-        logger.info("Bot connected to nftopia!")
+        logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {bot.initial_channels}")
 
     @bot.event()
     async def event_error(error, data):
