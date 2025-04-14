@@ -94,7 +94,6 @@
             old_img.remove()
         load_image()
         console.log(f"Updated to {current_image}")
-        # Play win sound
         if puzzle_num % 2 == 0:
             win_audio2.play()
         else:
@@ -103,12 +102,12 @@
 
     <script>
     async function pollForUpdates() {
-        const response = await fetch('/guess/A1'); // Replace with dynamic guess if needed
+        const response = await fetch('/guess/A1');
         const data = await response.json();
         if (data.status === "correct") {
             pyscript.runtime.globals.get('update_image')();
         }
-        setTimeout(pollForUpdates, 1000); // Poll every second
+        setTimeout(pollForUpdates, 1000);
     }
     pollForUpdates();
     </script>
