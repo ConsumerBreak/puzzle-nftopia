@@ -124,10 +124,13 @@ class GameState:
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
         self.max_prize = 50  # Default from Replit
-        # Run initialize_images synchronously using the current event loop
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.initialize_images())
-        self.initialize_puzzle()
+
+    @classmethod
+    async def create(cls, bot):
+        instance = cls(bot)
+        await instance.initialize_images()
+        instance.initialize_puzzle()
+        return instance
 
     async def initialize_images(self):
         """Dynamically determine available puzzle images by attempting to fetch them."""
@@ -299,7 +302,7 @@ class GameState:
             return f"Invalid prize range! {str(e)}"
 
     def get_random_prize(self):
-        return random.randint(self.min_prize, the.max_prize)
+        return random.randint(self.min_prize, self.max_prize)
 
     async def guess(self, coord, username, ctx):
         try:
@@ -598,7 +601,7 @@ async def main():
 
     # Create GameState with the bot instance
     global game_state
-    game_state = GameState(bot)
+    game_state = await GameState.create(bot)
 
     # Schedule the Twitch bot task
     bot_task = asyncio.create_task(start_bot_with_delay(bot))
