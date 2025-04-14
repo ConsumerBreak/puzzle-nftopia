@@ -59,15 +59,6 @@ leaderboard_cache_timestamp = None
 LEADERBOARD_CACHE_DURATION = 30  # Cache for 30 seconds
 cache_lock = Lock()
 
-# Bot configuration
-bot = commands.Bot(
-    token=os.environ['TWITCH_TOKEN'],
-    client_id=os.environ['TWITCH_CLIENT_ID'],
-    nick='nftopia_puzzle_bot',
-    prefix='!',
-    initial_channels=['nftopia']
-)
-
 # Rate limiter for commands
 class RateLimiter:
     def __init__(self, rate, per):
@@ -308,7 +299,7 @@ class GameState:
             return f"Invalid prize range! {str(e)}"
 
     def get_random_prize(self):
-        return random.randint(self.min_prize, self.max_prize)
+        return random.randint(self.min_prize, the.max_prize)
 
     async def guess(self, coord, username, ctx):
         try:
@@ -430,8 +421,6 @@ class GameState:
         except queue.Full:
             logger.warning(f"Event queue full, dropping event: {event_type}")
 
-game_state = GameState(bot)
-
 # Flask routes
 @app.route('/')
 def index():
@@ -455,97 +444,17 @@ def sse():
                 event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
                 logger.info(f"Sending SSE ping event: {json.dumps(event)}")
                 yield f"data: {json.dumps(event)}\n\n"
+            except (BrokenPipeError, ConnectionError):
+                logger.info("SSE client disconnected, closing connection")
+                break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
+                break
     return Response(stream(), mimetype='text/event-stream')
 
 @app.route('/health')
 def health_check():
     return "OK", 200
-
-# Twitch bot commands
-@bot.event()
-async def event_ready():
-    logger.info("Bot connected to nftopia!")
-
-@bot.event()
-async def event_error(error, data):
-    logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
-
-@bot.event()
-async def event_raw_data(data):
-    logger.debug(f"Twitch raw data: {data}")
-
-@bot.command(name='g')
-async def guess_command(ctx):
-    try:
-        if not global_rate_limiter.consume():
-            logger.info("Global rate limit exceeded, ignoring command")
-            return
-
-        guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
-        if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
-            await game_state.guess(guess.upper(), ctx.author.name, ctx)
-        else:
-            await ctx.send("Invalid coordinate! Use format like A1, B3, etc.")
-    except Exception as e:
-        logger.error(f"ERROR in guess_command: {str(e)}")
-        await ctx.send("An error occurred while processing your guess. Please try again.")
-
-@bot.command(name='cool')
-async def cool_command(ctx):
-    try:
-        if not global_rate_limiter.consume():
-            logger.info("Global rate limit exceeded, ignoring command")
-            return
-
-        if ctx.author.name.lower() == 'nftopia':
-            args = ctx.message.content.split(' ')
-            if len(args) > 1:
-                new_cooldown = args[1]
-                result = game_state.set_cooldown(new_cooldown)
-                await ctx.send(result)
-            else:
-                await ctx.send("Please provide a cooldown duration (e.g., !cool 30)")
-    except Exception as e:
-        logger.error(f"ERROR in cool_command: {str(e)}")
-        if ctx.author.name.lower() == 'nftopia':
-            await ctx.send("An error occurred while setting the cooldown. Please try again.")
-
-@bot.command(name='win')
-async def win_command(ctx):
-    try:
-        if not global_rate_limiter.consume():
-            logger.info("Global rate limit exceeded, ignoring command")
-            return
-
-        if ctx.author.name.lower() == 'nftopia':
-            args = ctx.message.content.split(' ')
-            if len(args) > 1:
-                prize_range = args[1]
-                result = game_state.set_prize(prize_range)
-                await ctx.send(result)
-            else:
-                await ctx.send("Please provide a prize range (e.g., !win 1-50)")
-    except Exception as e:
-        logger.error(f"ERROR in win_command: {str(e)}")
-        if ctx.author.name.lower() == 'nftopia':
-            await ctx.send("An error occurred while setting the prize range. Please try again.")
-
-@bot.command(name='testwin')
-async def test_win_command(ctx):
-    try:
-        if not global_rate_limiter.consume():
-            logger.info("Global rate limit exceeded, ignoring command")
-            return
-
-        if ctx.author.name.lower() == 'nftopia':
-            logger.info(f"Triggering test win event for {ctx.author.name}")
-            game_state.notify_event('win', {'winner': ctx.author.name, 'prize': game_state.get_random_prize()})
-            await ctx.send(f"Triggered a test win event for {ctx.author.name}!")
-    except Exception as e:
-        logger.error(f"ERROR in test_win_command: {str(e)}")
-        await ctx.send("An error occurred while triggering the test win event.")
 
 # Test Twitch token validity
 async def test_twitch_token():
@@ -566,7 +475,7 @@ async def test_twitch_token():
                 return False
 
 # Start the bot with a delay and detailed error handling
-async def start_bot_with_delay():
+async def start_bot_with_delay(bot):
     logger.info("Starting Twitch bot delay...")
     await asyncio.sleep(5)
     logger.info("Twitch bot delay completed, attempting to start bot...")
@@ -593,10 +502,108 @@ async def start_bot_with_delay():
 # Main entry point
 async def main():
     logger.info("Main script starting")
+
+    # Create the Twitch bot instance inside the main coroutine
+    bot = commands.Bot(
+        token=os.environ['TWITCH_TOKEN'],
+        client_id=os.environ['TWITCH_CLIENT_ID'],
+        nick='nftopia_puzzle_bot',
+        prefix='!',
+        initial_channels=['nftopia']
+    )
+
+    # Twitch bot commands (defined after bot creation)
+    @bot.event()
+    async def event_ready():
+        logger.info("Bot connected to nftopia!")
+
+    @bot.event()
+    async def event_error(error, data):
+        logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
+
+    @bot.event()
+    async def event_raw_data(data):
+        logger.debug(f"Twitch raw data: {data}")
+
+    @bot.command(name='g')
+    async def guess_command(ctx):
+        try:
+            if not global_rate_limiter.consume():
+                logger.info("Global rate limit exceeded, ignoring command")
+                return
+
+            guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
+            if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
+                await game_state.guess(guess.upper(), ctx.author.name, ctx)
+            else:
+                await ctx.send("Invalid coordinate! Use format like A1, B3, etc.")
+        except Exception as e:
+            logger.error(f"ERROR in guess_command: {str(e)}")
+            await ctx.send("An error occurred while processing your guess. Please try again.")
+
+    @bot.command(name='cool')
+    async def cool_command(ctx):
+        try:
+            if not global_rate_limiter.consume():
+                logger.info("Global rate limit exceeded, ignoring command")
+                return
+
+            if ctx.author.name.lower() == 'nftopia':
+                args = ctx.message.content.split(' ')
+                if len(args) > 1:
+                    new_cooldown = args[1]
+                    result = game_state.set_cooldown(new_cooldown)
+                    await ctx.send(result)
+                else:
+                    await ctx.send("Please provide a cooldown duration (e.g., !cool 30)")
+        except Exception as e:
+            logger.error(f"ERROR in cool_command: {str(e)}")
+            if ctx.author.name.lower() == 'nftopia':
+                await ctx.send("An error occurred while setting the cooldown. Please try again.")
+
+    @bot.command(name='win')
+    async def win_command(ctx):
+        try:
+            if not global_rate_limiter.consume():
+                logger.info("Global rate limit exceeded, ignoring command")
+                return
+
+            if ctx.author.name.lower() == 'nftopia':
+                args = ctx.message.content.split(' ')
+                if len(args) > 1:
+                    prize_range = args[1]
+                    result = game_state.set_prize(prize_range)
+                    await ctx.send(result)
+                else:
+                    await ctx.send("Please provide a prize range (e.g., !win 1-50)")
+        except Exception as e:
+            logger.error(f"ERROR in win_command: {str(e)}")
+            if ctx.author.name.lower() == 'nftopia':
+                await ctx.send("An error occurred while setting the prize range. Please try again.")
+
+    @bot.command(name='testwin')
+    async def test_win_command(ctx):
+        try:
+            if not global_rate_limiter.consume():
+                logger.info("Global rate limit exceeded, ignoring command")
+                return
+
+            if ctx.author.name.lower() == 'nftopia':
+                logger.info(f"Triggering test win event for {ctx.author.name}")
+                game_state.notify_event('win', {'winner': ctx.author.name, 'prize': game_state.get_random_prize()})
+                await ctx.send(f"Triggered a test win event for {ctx.author.name}!")
+        except Exception as e:
+            logger.error(f"ERROR in test_win_command: {str(e)}")
+            await ctx.send("An error occurred while triggering the test win event.")
+
+    # Create GameState with the bot instance
+    global game_state
+    game_state = GameState(bot)
+
     # Schedule the Twitch bot task
-    bot_task = asyncio.create_task(start_bot_with_delay())
+    bot_task = asyncio.create_task(start_bot_with_delay(bot))
     logger.info("Twitch bot task created")
-    
+
     # Configure and run the Flask app with hypercorn
     config = Config()
     config.bind = ["0.0.0.0:10000"]
