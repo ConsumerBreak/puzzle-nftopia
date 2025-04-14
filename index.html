@@ -375,14 +375,17 @@ async def load_image(url):
 
         def callback(img):
             if img is None:
+                console.log(f"Failed to load image from URL: {url}")
                 future.set_exception(Exception(f"Failed to load image: {url}"))
             else:
+                console.log(f"Successfully loaded image from URL: {url}")
                 future.set_result(img)
 
         load_image_js(url, create_proxy(callback))
         result = await future
         return result
-    except Exception:
+    except Exception as e:
+        console.log(f"Exception in load_image: {str(e)}")
         placeholder = document.createElement('canvas')
         placeholder.width = 2000
         placeholder.height = 2000
@@ -554,12 +557,18 @@ def draw_side_piece():
 
 def update_leaderboard():
     try:
+        console.log(f"Updating leaderboard with data: {state['leaderboard']}")
         ul = document.getElementById('leaderboard-list')
         ul.innerHTML = ''
-        for username, wins in state['leaderboard']:
+        if not state['leaderboard']:
             li = document.createElement('li')
-            li.textContent = f'{username}: {wins} wins'
+            li.textContent = 'No leaderboard data yet'
             ul.appendChild(li)
+        else:
+            for username, wins in state['leaderboard']:
+                li = document.createElement('li')
+                li.textContent = f'{username}: {wins} wins'
+                ul.appendChild(li)
     except Exception as e:
         console.log(f"Error in update_leaderboard: {str(e)}")
 
