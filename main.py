@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Content Security Policy header
+# Content Security Policy header - Added blob: to connect-src
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -29,7 +29,7 @@ CSP_HEADER = (
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob:;"
 )
 
 # Check for required environment variables
@@ -129,8 +129,7 @@ class GameState:
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
         self.max_prize = 50  # Default from Replit
-        # Initialize images by checking available puzzles
-        asyncio.run_coroutine_threadsafe(self.initialize_images(), asyncio.get_event_loop())
+        # Defer image initialization until the event loop is running
         self.initialize_puzzle()
 
     async def initialize_images(self):
@@ -157,6 +156,7 @@ class GameState:
             logger.warning("No puzzle images found, using a placeholder")
             self.images = ["placeholder.png"]
         self.current_image = self.images[0]
+        logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
 
     def load_leaderboard_from_sheet(self):
         global leaderboard_cache, leaderboard_cache_timestamp
@@ -254,7 +254,7 @@ class GameState:
             self.expected_coord = self.index_to_coord(self.natural_section)
         if self.images:
             self.current_image = self.images[self.image_index]
-            self.image_index = (self.image_index + 1) % len(self.images)  # Cycle through all available puzzles
+            self.image_index = (self.image_index + 1) % len(self.images)
         self.game_id += 1
         self.piece_id += 1
         self.notify_state_update()
@@ -528,7 +528,7 @@ async def test_win_command(ctx):
         logger.error(f"ERROR in test_win_command: {str(e)}")
         await ctx.send("An error occurred while triggering the test win event.")
 
-# Start the bot with a delay and error handling
+# Start the bot and initialize images with a delay
 async def start_bot_with_delay():
     await asyncio.sleep(5)
     try:
@@ -544,11 +544,18 @@ async def start_bot_with_delay():
         except Exception as e:
             logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.")
 
+async def initialize_game_state():
+    await asyncio.sleep(1)  # Ensure the event loop is running
+    logger.info("Initializing puzzle images...")
+    await game_state.initialize_images()
+    game_state.notify_state_update()
+
 if __name__ == '__main__':
     logger.info("Main script starting")
     logger.info("Starting Flask on port 10000")
     loop = asyncio.get_event_loop()
     logger.info("Starting Twitch bot with delay...")
     loop.create_task(start_bot_with_delay())
-    logger.info("Twitch bot task created")
+    loop.create_task(initialize_game_state())
+    logger.info("Twitch bot and game state initialization tasks created")
     app.run(host='0.0.0.0', port=10000)
