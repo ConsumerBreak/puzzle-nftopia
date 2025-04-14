@@ -46,67 +46,75 @@
     <button id="start-button">Click to Start Game</button>
     <div id="game-container"></div>
 
-    <py-script>
-    import micropip
-    from js import document, Image, Audio, console
-    import time
-    import asyncio
-
-    async def initialize():
-        await micropip.install('requests')
-        console.log("PyScript initialized")
-
-        global current_image, base_url, total_puzzles, win_audio, win_audio2
-        current_image = "puzzle01_00000.png"
-        base_url = "https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/"
-        total_puzzles = 7
-
-        win_audio = Audio.new(f'{base_url}win_sound.mp3?t={int(time.time())}')
-        win_audio2 = Audio.new(f'{base_url}win_sound2.mp3?t={int(time.time())}')
-
-    def load_image():
-        console.log("Loading image...")
-        url = f"{base_url}{current_image}?t={int(time.time())}"
-        img = Image.new()
-        img.src = url
-        img.id = "puzzle-image"
-        img.style.width = "500px"
-        img.style.height = "500px"
-        document.getElementById("game-container").appendChild(img)
-        console.log("Image loaded")
-
-    def start_game():
-        console.log("start_game called")
-        document.getElementById("start-button").style.display = "none"
-        document.getElementById("game-container").style.display = "block"
-        load_image()
-        console.log("start_game finished")
-
-    def update_image():
-        global current_image
-        console.log("Updating image...")
-        puzzle_num = int(current_image.split('_')[0].replace('puzzle', ''))
-        puzzle_num += 1
-        if puzzle_num > total_puzzles:
-            puzzle_num = 1
-        current_image = f"puzzle{puzzle_num:02d}_00000.png"
-        old_img = document.getElementById("puzzle-image")
-        if old_img:
-            old_img.remove()
-        load_image()
-        console.log(f"Updated to {current_image}")
-        if puzzle_num % 2 == 0:
-            win_audio2.play()
-        else:
-            win_audio.play()
-    </py-script>
-
     <script>
     document.addEventListener("pyscript-ready", async function() {
-        // Load micropip before running Python code
+        // Load micropip
+        console.log("Loading micropip...");
         await pyodide.loadPackage("micropip");
-        
-        // Initialize PyScript code
+        console.log("Micropip loaded");
+
+        // Define the Python code as a string
+        const pythonCode = `
+import micropip
+from js import document, Image, Audio, console
+import time
+import asyncio
+
+async def initialize():
+    await micropip.install('requests')
+    console.log("PyScript initialized")
+
+    global current_image, base_url, total_puzzles, win_audio, win_audio2
+    current_image = "puzzle01_00000.png"
+    base_url = "https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/"
+    total_puzzles = 7
+
+    win_audio = Audio.new(f'{base_url}win_sound.mp3?t={int(time.time())}')
+    win_audio2 = Audio.new(f'{base_url}win_sound2.mp3?t={int(time.time())}')
+
+def load_image():
+    console.log("Loading image...")
+    url = f"{base_url}{current_image}?t={int(time.time())}"
+    img = Image.new()
+    img.src = url
+    img.id = "puzzle-image"
+    img.style.width = "500px"
+    img.style.height = "500px"
+    document.getElementById("game-container").appendChild(img)
+    console.log("Image loaded")
+
+def start_game():
+    console.log("start_game called")
+    document.getElementById("start-button").style.display = "none"
+    document.getElementById("game-container").style.display = "block"
+    load_image()
+    console.log("start_game finished")
+
+def update_image():
+    global current_image
+    console.log("Updating image...")
+    puzzle_num = int(current_image.split('_')[0].replace('puzzle', ''))
+    puzzle_num += 1
+    if puzzle_num > total_puzzles:
+        puzzle_num = 1
+    current_image = f"puzzle{puzzle_num:02d}_00000.png"
+    old_img = document.getElementById("puzzle-image")
+    if old_img:
+        old_img.remove()
+    load_image()
+    console.log(f"Updated to {current_image}")
+    if puzzle_num % 2 == 0:
+        win_audio2.play()
+    else:
+        win_audio.play()
+`;
+
+        // Run the Python code
+        console.log("Running Python code...");
+        await pyscript.runtime.run(pythonCode);
+        console.log("Python code executed");
+
+        // Initialize the app
         await pyscript.runtime.globals.get("initialize")();
 
         // Bind the start button
