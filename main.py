@@ -41,8 +41,8 @@ scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open the spreadsheet
-spreadsheet = client.open("TwitchPuzzleLeaderboard")
+# Open the spreadsheet using the spreadsheet ID
+spreadsheet = client.open_by_key("1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU")
 worksheet = spreadsheet.get_worksheet(0)
 
 # Twitch bot setup
