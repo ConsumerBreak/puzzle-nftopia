@@ -13,6 +13,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from threading import Lock
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -588,14 +590,19 @@ async def start_bot_with_delay():
         except Exception as e:
             logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.", exc_info=True)
 
-if __name__ == '__main__':
+# Main entry point
+async def main():
     logger.info("Main script starting")
-    logger.info("Starting Flask on port 10000")
-    # Create a new event loop for the Flask app
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    logger.info("Starting Twitch bot with delay...")
-    loop.create_task(start_bot_with_delay())
+    # Schedule the Twitch bot task
+    bot_task = asyncio.create_task(start_bot_with_delay())
     logger.info("Twitch bot task created")
-    # Run Flask in a way that integrates with the event loop
-    app.run(host='0.0.0.0', port=10000, use_reloader=False)
+    
+    # Configure and run the Flask app with hypercorn
+    config = Config()
+    config.bind = ["0.0.0.0:10000"]
+    logger.info("Starting Flask on port 10000 with hypercorn")
+    await serve(app, config)
+
+if __name__ == '__main__':
+    # Run the main coroutine
+    asyncio.run(main())
