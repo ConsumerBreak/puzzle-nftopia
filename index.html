@@ -115,20 +115,31 @@ def update_image():
         console.log("Python code executed");
 
         // Initialize the app
+        console.log("Initializing app...");
         await pyscript.runtime.globals.get("initialize")();
+        console.log("App initialized");
 
         // Bind the start button
         const startButton = document.getElementById("start-button");
-        startButton.onclick = function() {
-            pyscript.runtime.globals.get("start_game")();
-        };
+        console.log("Binding start button...");
+        startButton.addEventListener("click", function() {
+            console.log("Start button clicked");
+            try {
+                pyscript.runtime.globals.get("start_game")();
+            } catch (error) {
+                console.error("Error calling start_game:", error);
+            }
+        });
+        console.log("Start button bound");
 
         // Start polling for updates
+        console.log("Starting polling...");
         async function pollForUpdates() {
             try {
                 const response = await fetch('/guess/A1');
                 const data = await response.json();
                 if (data.status === "correct") {
+                    console.log("Correct guess received, updating image...");
                     pyscript.runtime.globals.get('update_image')();
                 }
             } catch (error) {
@@ -137,6 +148,7 @@ def update_image():
             setTimeout(pollForUpdates, 1000);
         }
         pollForUpdates();
+        console.log("Polling started");
     });
     </script>
 </body>
