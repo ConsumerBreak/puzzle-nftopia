@@ -103,6 +103,9 @@
 
     <script>
     document.addEventListener("pyscript-ready", async function() {
+        // Load micropip before running Python code
+        await pyodide.loadPackage("micropip");
+        
         // Initialize PyScript code
         await pyscript.runtime.globals.get("initialize")();
 
