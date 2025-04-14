@@ -56,13 +56,12 @@ bot = commands.Bot(
 
 # Game state
 current_puzzle_index = 0
-puzzle_answers = ["A1", "B2", "C3", "D4", "E5", "F6", "G7"]  # Adjust based on your puzzles
+puzzle_answers = ["A1", "B2", "C3", "D4", "E5", "F6", "G7"]
 current_answer = puzzle_answers[current_puzzle_index]
 
 def update_leaderboard(guess, user):
     try:
         logger.info(f"Updating leaderboard for user: {user}")
-        # Example: Append a new row with user and timestamp
         worksheet.append_row([user, guess, str(current_puzzle_index + 1), str(time.time())])
         logger.info("Leaderboard updated")
     except Exception as e:
@@ -79,14 +78,13 @@ def serve_index():
 
 @app.route('/guess/<guess>')
 async def handle_guess(guess):
+    global current_puzzle_index, current_answer  # Declare globals at the start
     logger.info(f"Received guess: {guess}")
     if guess.lower() == current_answer.lower():
         logger.info("Correct guess, advancing to next puzzle")
-        global current_puzzle_index
         current_puzzle_index += 1
         if current_puzzle_index > 6:  # 7 puzzles (0 to 6)
             current_puzzle_index = 0
-        global current_answer
         current_answer = puzzle_answers[current_puzzle_index]
         update_leaderboard(guess, "some_user")  # Replace "some_user" with actual Twitch username if available
         return jsonify({"status": "correct", "next_puzzle": f"puzzle{current_puzzle_index + 1:02d}_00000.png"})
