@@ -43,25 +43,26 @@
     <script defer src="https://pyscript.net/releases/2024.4.1/core.js" type="module"></script>
 </head>
 <body>
-    <button id="start-button" onclick="pyscript.runtime.globals.get('start_game')()">Click to Start Game</button>
+    <button id="start-button">Click to Start Game</button>
     <div id="game-container"></div>
 
     <py-script>
     import micropip
-    await micropip.install('requests')
-
     from js import document, Image, Audio, console
     import time
     import asyncio
 
-    console.log("PyScript initialized")
+    async def initialize():
+        await micropip.install('requests')
+        console.log("PyScript initialized")
 
-    current_image = "puzzle01_00000.png"
-    base_url = "https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/"
-    total_puzzles = 7
+        global current_image, base_url, total_puzzles, win_audio, win_audio2
+        current_image = "puzzle01_00000.png"
+        base_url = "https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/"
+        total_puzzles = 7
 
-    win_audio = Audio.new(f'{base_url}win_sound.mp3?t={int(time.time())}')
-    win_audio2 = Audio.new(f'{base_url}win_sound2.mp3?t={int(time.time())}')
+        win_audio = Audio.new(f'{base_url}win_sound.mp3?t={int(time.time())}')
+        win_audio2 = Audio.new(f'{base_url}win_sound2.mp3?t={int(time.time())}')
 
     def load_image():
         console.log("Loading image...")
@@ -98,14 +99,29 @@
             win_audio2.play()
         else:
             win_audio.play()
+
+    # Run initialization
+    await initialize()
     </py-script>
 
     <script>
+    // Wait for PyScript to load before binding the button
+    document.addEventListener("pyscript-ready", function() {
+        const startButton = document.getElementById("start-button");
+        startButton.onclick = function() {
+            pyscript.runtime.globals.get("start_game")();
+        };
+    });
+
     async function pollForUpdates() {
-        const response = await fetch('/guess/A1');
-        const data = await response.json();
-        if (data.status === "correct") {
-            pyscript.runtime.globals.get('update_image')();
+        try {
+            const response = await fetch('/guess/A1');
+            const data = await response.json();
+            if (data.status === "correct") {
+                pyscript.runtime.globals.get('update_image')();
+            }
+        } catch (error) {
+            console.error("Error polling for updates:", error);
         }
         setTimeout(pollForUpdates, 1000);
     }
