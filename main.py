@@ -18,6 +18,9 @@ from threading import Lock
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Set twitchio logging to DEBUG for more detailed output
+logging.getLogger('twitchio').setLevel(logging.DEBUG)
+
 app = Flask(__name__)
 
 # Content Security Policy header
@@ -467,6 +470,10 @@ async def event_ready():
 async def event_error(error, data):
     logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
 
+@bot.event()
+async def event_raw_data(data):
+    logger.debug(f"Twitch raw data: {data}")
+
 @bot.command(name='g')
 async def guess_command(ctx):
     try:
@@ -538,19 +545,46 @@ async def test_win_command(ctx):
         logger.error(f"ERROR in test_win_command: {str(e)}")
         await ctx.send("An error occurred while triggering the test win event.")
 
-# Start the bot with a delay and error handling
+# Test Twitch token validity
+async def test_twitch_token():
+    token = os.environ['TWITCH_TOKEN']
+    client_id = os.environ['TWITCH_CLIENT_ID']
+    headers = {
+        'Authorization': f'Bearer {token.replace("oauth:", "")}',
+        'Client-Id': client_id
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get('https://id.twitch.tv/oauth2/validate', headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                logger.info(f"Twitch token validation successful: {data}")
+                return True
+            else:
+                logger.error(f"Twitch token validation failed: HTTP {response.status}, {await response.text()}")
+                return False
+
+# Start the bot with a delay and detailed error handling
 async def start_bot_with_delay():
+    logger.info("Starting Twitch bot delay...")
     await asyncio.sleep(5)
+    logger.info("Twitch bot delay completed, attempting to start bot...")
     try:
-        logger.info("Attempting to start Twitch bot...")
-        await bot.start()
+        # Test token validity before starting the bot
+        if await test_twitch_token():
+            logger.info("Token is valid, starting bot...")
+            await bot.start()
+        else:
+            logger.error("Skipping bot start due to invalid token.")
     except Exception as e:
         logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
         # Retry connection after a delay
+        logger.info("Retrying Twitch bot connection in 10 seconds...")
         await asyncio.sleep(10)
-        logger.info("Retrying Twitch bot connection...")
         try:
-            await bot.start()
+            if await test_twitch_token():
+                await bot.start()
+            else:
+                logger.error("Retry skipped due to invalid token.")
         except Exception as e:
             logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.", exc_info=True)
 
