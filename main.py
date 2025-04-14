@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import asyncio
-import time  # Added import for time
+import time
 from flask import Flask, send_file, jsonify
 from twitchio.ext import commands
 from google.oauth2.service_account import Credentials
@@ -47,9 +47,17 @@ spreadsheet = client.open_by_key("1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU")
 worksheet = spreadsheet.get_worksheet(0)
 
 # Twitch bot setup
+try:
+    twitch_token = os.environ['TWITCH_TOKEN']
+    twitch_client_id = os.environ['TWITCH_CLIENT_ID']
+    logger.info("Twitch credentials loaded successfully")
+except KeyError as e:
+    logger.error(f"Missing Twitch credential: {e}")
+    raise
+
 bot = commands.Bot(
-    token=os.environ['TWITCH_TOKEN'],
-    client_id=os.environ['TWITCH_CLIENT_ID'],
+    token=twitch_token,
+    client_id=twitch_client_id,
     nick='nftopia_puzzle_bot',
     prefix='!',
     initial_channels=['nftopia']
@@ -99,6 +107,11 @@ def health_check():
 async def event_ready():
     logger.info("Bot connected to Twitch!")
 
+@bot.event()
+async def event_error(error, data):
+    logger.error(f"Twitch bot error: {error}")
+    logger.debug(f"Error data: {data}")
+
 @bot.command(name='g')
 async def guess_command(ctx):
     guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else ''
@@ -115,5 +128,7 @@ if __name__ == '__main__':
     logger.info("Main script starting")
     logger.info("Starting Flask on port 10000")
     loop = asyncio.get_event_loop()
+    logger.info("Starting Twitch bot...")
     loop.create_task(bot.start())
+    logger.info("Twitch bot task created")
     app.run(host='0.0.0.0', port=10000)
