@@ -22,7 +22,7 @@ CSP_HEADER = (
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org;"
 )
 
 # Load Google Sheets credentials from environment variable
@@ -41,7 +41,7 @@ scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 client = gspread.authorize(creds)
 
-# Open the spreadsheet (replace with your spreadsheet name)
+# Open the spreadsheet
 spreadsheet = client.open("TwitchPuzzleLeaderboard")
 worksheet = spreadsheet.get_worksheet(0)
 
@@ -78,15 +78,15 @@ def serve_index():
 
 @app.route('/guess/<guess>')
 async def handle_guess(guess):
-    global current_puzzle_index, current_answer  # Declare globals at the start
+    global current_puzzle_index, current_answer
     logger.info(f"Received guess: {guess}")
     if guess.lower() == current_answer.lower():
         logger.info("Correct guess, advancing to next puzzle")
         current_puzzle_index += 1
-        if current_puzzle_index > 6:  # 7 puzzles (0 to 6)
+        if current_puzzle_index > 6:
             current_puzzle_index = 0
         current_answer = puzzle_answers[current_puzzle_index]
-        update_leaderboard(guess, "some_user")  # Replace "some_user" with actual Twitch username if available
+        update_leaderboard(guess, "some_user")
         return jsonify({"status": "correct", "next_puzzle": f"puzzle{current_puzzle_index + 1:02d}_00000.png"})
     return jsonify({"status": "incorrect"})
 
