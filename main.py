@@ -40,7 +40,7 @@ CSP_HEADER = (
 required_env_vars = ['TWITCH_TOKEN', 'TWITCH_CLIENT_ID', 'GOOGLE_CREDENTIALS']
 missing_vars = [var for var in required_env_vars if var not in os.environ]
 if missing_vars:
-    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}.")
 
 # Google Sheets setup
 creds_json = os.environ.get('GOOGLE_CREDENTIALS')
@@ -105,13 +105,7 @@ def exponential_backoff(func, max_retries=5, base_delay=1):
 class GameState:
     def __init__(self, bot):
         self.bot = bot
-        self.images = [
-            "puzzle01_00000.png",
-            "puzzle02_00000.png",
-            "puzzle03_00000.png",
-            "puzzle04_00000.png",
-            "puzzle05_00000.png"
-        ]  # Predefined list of images
+        self.images = []
         self.image_index = 0
         self.current_image = None
         self.pieces = {}
@@ -127,9 +121,9 @@ class GameState:
         self.piece_id = 0
         self.event_queue = queue.Queue()
         self.last_guess_times = {}
-        self.cooldown_seconds = 60
-        self.min_prize = 1
-        self.max_prize = 50
+        self.cooldown_seconds = 60  # Default from Replit
+        self.min_prize = 1  # Default from Replit
+        self.max_prize = 50  # Default from Replit
 
     @classmethod
     async def create(cls, bot):
@@ -139,21 +133,29 @@ class GameState:
         return instance
 
     async def initialize_images(self):
-        """Validate predefined puzzle images."""
-        valid_images = []
+        """Dynamically determine available puzzle images by attempting to fetch them."""
+        self.images = []
+        i = 1
         async with aiohttp.ClientSession() as session:
-            for image_name in self.images:
+            while True:
+                image_name = f"puzzle{i:02d}_00000.png"
                 url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
                 try:
-                    async with session.head(url, timeout=5) as response:
+                    async with session.head(url) as response:
+                        logger.info(f"Checking image {image_name}: HTTP Status {response.status}")
                         if response.status == 200:
-                            valid_images.append(image_name)
-                            logger.info(f"Validated puzzle image: {image_name}")
+                            self.images.append(image_name)
+                            logger.info(f"Found puzzle image: {image_name}")
+                            i += 1
                         else:
-                            logger.warning(f"Image {image_name} not found: HTTP {response.status}")
+                            logger.info(f"No more puzzle images found after {image_name}, stopping at {i-1} puzzles")
+                            break
                 except Exception as e:
-                    logger.error(f"Error validating image {image_name}: {str(e)}")
-        self.images = valid_images if valid_images else ["placeholder.png"]
+                    logger.error(f"Error checking puzzle image {image_name}: {str(e)}")
+                    break
+        if not self.images:
+            logger.warning("No puzzle images found, using a placeholder")
+            self.images = ["placeholder.png"]
         self.current_image = self.images[0] if self.images else "placeholder.png"
         logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
         logger.info(f"Set initial current_image to: {self.current_image}")
@@ -252,6 +254,7 @@ class GameState:
             self.natural_section = self.section_mapping[self.current_piece]
             self.expected_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
+        # Only update current_image if images are available, and cycle through them
         if self.images:
             logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
             self.current_image = self.images[self.image_index]
@@ -474,29 +477,30 @@ async def test_twitch_token():
                 logger.error(f"Twitch token validation failed: HTTP {response.status}, {await response.text()}")
                 return False
 
-# Start the bot with a delay and robust retry logic
+# Start the bot with a delay and detailed error handling
 async def start_bot_with_delay(bot):
     logger.info("Starting Twitch bot delay...")
-    max_retries = 5
-    base_delay = 5
-    for attempt in range(max_retries):
-        await asyncio.sleep(5)
-        logger.info(f"Attempting to start bot (attempt {attempt + 1}/{max_retries})...")
+    await asyncio.sleep(5)
+    logger.info("Twitch bot delay completed, attempting to start bot...")
+    try:
+        # Test token validity before starting the bot
+        if await test_twitch_token():
+            logger.info("Token is valid, starting bot...")
+            await bot.start()
+        else:
+            logger.error("Skipping bot start due to invalid token.")
+    except Exception as e:
+        logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
+        # Retry connection after a delay
+        logger.info("Retrying Twitch bot connection in 10 seconds...")
+        await asyncio.sleep(10)
         try:
             if await test_twitch_token():
-                logger.info("Token is valid, starting bot...")
                 await bot.start()
-                logger.info("Bot started successfully")
-                return
             else:
-                logger.error("Invalid token, retrying...")
+                logger.error("Retry skipped due to invalid token.")
         except Exception as e:
-            logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
-        if attempt < max_retries - 1:
-            delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-            logger.info(f"Retrying in {delay:.2f} seconds...")
-            await asyncio.sleep(delay)
-    logger.error("Max retries reached, bot failed to start. Please check TWITCH_TOKEN and network connectivity.")
+            logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.", exc_info=True)
 
 # Main entry point
 async def main():
