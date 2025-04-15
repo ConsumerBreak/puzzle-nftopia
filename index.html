@@ -2,97 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NFTopia Puzzle Game</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap">
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <title>Puzzle Break</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+    <script defer src="https://pyscript.net/releases/2024.10.1/core.js" type="module"></script>
     <style>
         body {
-            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
+            color: #fff;
+            font-family: 'Bebas Neue', sans-serif;
             margin: 0;
-            padding: 0;
-            background-color: #121212;
-            color: #ffffff;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
             min-height: 100vh;
-            overflow-x: hidden;
         }
-        #game-container {
+        .container {
             display: flex;
-            flex-direction: row;
-            align-items: flex-start;
             gap: 20px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        #puzzle-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 100px);
-            grid-template-rows: repeat(5, 100px);
-            gap: 2px;
-            background-color: #1e1e1e;
-            padding: 5px;
-            border: 2px solid #333;
-        }
-        .grid-cell {
-            width: 100px;
-            height: 100px;
-            background-color: #2a2a2a;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            border: 2px solid #00ff00;
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #ffffff;
-            user-select: none;
         }
-        .grid-cell img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-        .grid-cell .miss {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 40px;
-            color: red;
-            z-index: 2;
+        canvas {
+            border: 3px solid #00ff00;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
         }
         #side-piece {
-            width: 100px;
-            height: 100px;
-            background-color: #2a2a2a;
-            border: 2px solid #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #side-piece img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            border: 3px solid #ffd700;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
         }
         #leaderboard {
-            background-color: #1e1e1e;
+            background: rgba(0, 255, 0, 0.1);
             padding: 15px;
-            border: 2px solid #333;
-            width: 200px;
+            border-radius: 10px;
+            border: 2px dashed #00ff00;
+            min-width: 200px;
             max-height: 400px;
             overflow-y: auto;
         }
         #leaderboard h2 {
             margin: 0 0 10px;
-            font-size: 24px;
-            text-align: center;
+            font-size: 34px;
+            color: #00ff00;
         }
         #leaderboard ul {
             list-style: none;
@@ -100,29 +55,33 @@
             margin: 0;
         }
         #leaderboard li {
-            padding: 5px 0;
-            font-size: 16px;
+            font-size: 24px;
+            margin: 5px 0;
         }
-        #win-overlay {
-            display: none;
+        #win-announcement {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 30px;
             color: #ffffff;
-            font-size: 48px;
-            text-align: center;
-        }
-        #win-text {
-            background: #333;
-            padding: 20px;
+            text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff, 0 0 15px #00ffff, 0 0 20px #00ffff;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px 15px;
             border-radius: 10px;
+            border: 4px solid #ffd700;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.9), inset 0 0 15px rgba(255, 215, 0, 0.7);
+            z-index: 1000;
+            display: none;
+            pointer-events: none;
+            letter-spacing: 1px;
+            max-width: 280px;
+            text-align: center;
+            white-space: normal;
+        }
+        #win-announcement:not(.complete) {
+            animation: winPop 0.8s ease-out forwards, winGlow 1.2s infinite alternate, fadeOut 2s 3s ease-out forwards;
+        }
+        #win-announcement.complete {
+            animation: winPop 0.8s ease-out forwards, winGlow 1.2s infinite alternate, fadeOut 2s 6s ease-out forwards;
         }
         #confetti-canvas {
             position: fixed;
@@ -130,203 +89,649 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 999;
             pointer-events: none;
-            display: block;
+            z-index: 999;
+        }
+        p {
+            font-size: 28px;
+            margin: 10px 0;
+            text-align: center;
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        #side-piece-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #timer-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #timer-description {
+            font-size: 24px;
+            color: #ffd700;
+            text-shadow: 0 0 5px #ffd700;
+            margin-bottom: 10px;
+            max-width: 200px;
+            line-height: 1.2;
         }
         #cooldown-timer {
-            margin-top: 20px;
+            font-size: 48px;
+            color: #ffd700;
+            text-shadow: 0 0 5px #ffd700;
+        }
+        #start-button, #test-win-button {
+            padding: 10px 20px;
             font-size: 20px;
-            color: #ffffff;
+            font-family: 'Bebas Neue', sans-serif;
+            color: #fff;
+            background: #00ff00;
+            border: 2px solid #ffd700;
+            border-radius: 5px;
+            cursor: pointer;
+            text-shadow: 0 0 5px #000;
+            margin: 10px;
         }
-        #cooldown-timer span {
-            font-weight: bold;
-            color: #ff4444;
+        #start-button {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001;
         }
-        @media (max-width: 600px) {
-            #puzzle-grid {
-                grid-template-columns: repeat(5, 60px);
-                grid-template-rows: repeat(5, 60px);
+        #test-win-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+        }
+        #start-button:hover, #test-win-button:hover {
+            background: #ffd700;
+            color: #000;
+        }
+        @keyframes winPop {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-15deg); opacity: 0; }
+            70% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes winGlow {
+            0% { 
+                text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff, 0 0 15px #00ffff, 0 0 20px #00ffff;
+                box-shadow: 0 0 30px rgba(0, 255, 255, 0.9), inset 0 0 15px rgba(255, 215, 0, 0.7);
+                border-color: #ffd700;
             }
-            .grid-cell, #side-piece {
-                width: 60px;
-                height: 60px;
+            100% { 
+                text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 25px #00ffff, 0 0 35px #00ffff;
+                box-shadow: 0 0 50px rgba(0, 255, 255, 1), inset 0 0 20px rgba(255, 215, 0, 1);
+                border-color: #ff00ff;
             }
-            #leaderboard {
-                width: 100%;
-                max-width: 300px;
-            }
-            #win-text {
-                font-size: 24px;
-                padding: 10px;
-            }
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="puzzle-grid"></div>
-        <div id="side-piece"></div>
-        <div id="leaderboard">
-            <h2>Leaderboard</h2>
-            <ul id="leaderboard-list"></ul>
+    <button id="start-button">Click to Start Game</button>
+    <button id="test-win-button" style="display: none;">Test Win Animation</button>
+    <div class="container" style="display: none;">
+        <div>
+            <canvas id="grid" width="350" height="350"></canvas>
+            <p>Use !g (coordinate)</p>
+            <div id="side-piece-container">
+                <canvas id="side-piece" width="210" height="210"></canvas>
+            </div>
+        </div>
+        <div>
+            <div id="leaderboard">
+                <h2>Leaderboard</h2>
+                <ul id="leaderboard-list"></ul>
+            </div>
+            <div id="timer-container">
+                <div id="timer-description">
+                    see what second you're on when you guess, and then you can guess again when the timer comes back to that second.
+                </div>
+                <div id="cooldown-timer">5</div>
+            </div>
         </div>
     </div>
-    <div id="cooldown-timer">Cooldown: <span id="cooldown-time">60</span>s</div>
-    <div id="win-overlay">
-        <div id="win-text"></div>
-    </div>
+    <div id="win-announcement"></div>
     <canvas id="confetti-canvas"></canvas>
-
     <script>
-        const grid = document.getElementById('puzzle-grid');
-        const sidePiece = document.getElementById('side-piece');
-        const leaderboardList = document.getElementById('leaderboard-list');
-        const winOverlay = document.getElementById('win-overlay');
-        const winText = document.getElementById('win-text');
         const confettiCanvas = document.getElementById('confetti-canvas');
-        const cooldownTime = document.getElementById('cooldown-time');
+        const confettiCtx = confettiCanvas.getContext('2d');
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
 
-        let gameState = {
-            pieces: {},
-            guesses: {},
-            current_piece: null,
-            natural_section: null,
-            current_image: '',
-            leaderboard: [],
-            sectionMapping: {},
-            gameId: 0,
-            pieceId: 0,
-            cooldownSeconds: 60
+        function createConfetti() {
+            const particles = [];
+            const gridCanvas = document.getElementById('grid');
+            const gridRect = gridCanvas.getBoundingClientRect();
+            const centerX = gridRect.left + 175;
+            const centerY = gridRect.top + 175;
+
+            console.log(`Confetti center: (${centerX}, ${centerY})`);
+
+            for (let i = 0; i < 150; i++) {
+                const shapeType = Math.random();
+                let shape;
+                if (shapeType < 0.4) shape = 'circle';
+                else if (shapeType < 0.7) shape = 'square';
+                else shape = 'star';
+
+                particles.push({
+                    x: centerX,
+                    y: centerY,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    size: Math.random() * 5 + 3,
+                    shape: shape,
+                    opacity: 1,
+                    rotation: Math.random() * 360,
+                    rotationSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+            return particles;
+        }
+
+        function drawStar(ctx, x, y, size, rotation) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * size, Math.sin((18 + i * 72) * Math.PI / 180) * size);
+                ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * (size / 2), Math.sin((54 + i * 72) * Math.PI / 180) * (size / 2));
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function animateConfetti(particles) {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.vx *= 0.98;
+                p.vy *= 0.98;
+                p.opacity -= 0.005;
+                p.rotation += p.rotationSpeed;
+
+                if (p.y > confettiCanvas.height || p.x < 0 || p.x > confettiCanvas.width || p.opacity <= 0) return;
+
+                confettiCtx.globalAlpha = p.opacity;
+                confettiCtx.fillStyle = p.color;
+
+                if (p.shape === 'circle') {
+                    confettiCtx.beginPath();
+                    confettiCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    confettiCtx.fill();
+                } else if (p.shape === 'square') {
+                    confettiCtx.save();
+                    confettiCtx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
+                    confettiCtx.restore();
+                } else if (p.shape === 'star') {
+                    drawStar(confettiCtx, p.x, p.y, p.size, p.rotation);
+                }
+            });
+
+            const remainingParticles = particles.filter(p => p.y <= confettiCanvas.height && p.x >= 0 && p.x <= confettiCanvas.width && p.opacity > 0);
+            if (remainingParticles.length > 0) {
+                requestAnimationFrame(() => animateConfetti(remainingParticles));
+            }
+        }
+
+        window.triggerConfetti = function() {
+            const particles = createConfetti();
+            animateConfetti(particles);
         };
+    </script>
+    <script type="py" config='{"packages": ["requests"]}'>
+import json
+import asyncio
+from js import EventSource, fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame
+from pyodide.http import pyfetch
+from pyodide.ffi import create_proxy
+import time
 
-        function createGrid() {
-            grid.innerHTML = '';
-            for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'grid-cell';
-                    cell.dataset.coord = `${String.fromCharCode(65 + row)}${col + 1}`;
-                    grid.appendChild(cell);
-                }
-            }
-        }
+# Canvas setup
+grid_canvas = document.getElementById('grid')
+grid_ctx = grid_canvas.getContext('2d')
+side_canvas = document.getElementById('side-piece')
+side_ctx = side_canvas.getContext('2d')
 
-        function updateState(state) {
-            console.log('Updating state:', JSON.stringify(state));
-            gameState = state;
-            updateGrid();
-            updateSidePiece();
-            updateLeaderboard();
-            updateCooldown();
-        }
+# Game state
+state = {
+    'pieces': {},
+    'current_piece': None,
+    'natural_section': None,
+    'current_image': '',
+    'guesses': {},
+    'leaderboard': [],
+    'sectionMapping': {},
+    'reverse_section_mapping': {},
+    'baseMapping': {},
+    'reverseBaseMapping': {},
+    'gameId': 0,
+    'pieceId': 0,
+    'cooldownSeconds': 5,
+    'minPrize': 1,
+    'maxPrize': 50
+}
 
-        function updateGrid() {
-            const cells = document.querySelectorAll('.grid-cell');
-            cells.forEach(cell => {
-                const coord = cell.dataset.coord;
-                cell.innerHTML = '';
-                if (gameState.pieces[coord]) {
-                    const pieceIndex = gameState.pieces[coord];
-                    const img = document.createElement('img');
-                    img.src = `https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/${gameState.current_image}?v=${gameState.gameId}`;
-                    img.style.objectPosition = `-${(pieceIndex % 5) * 100}px -${Math.floor(pieceIndex / 5) * 100}px`;
-                    cell.appendChild(img);
-                } else if (gameState.guesses[coord] === 'miss') {
-                    const miss = document.createElement('span');
-                    miss.className = 'miss';
-                    miss.textContent = 'X';
-                    cell.appendChild(miss);
-                    console.log(`Rendering miss at ${coord}`);
-                }
-            });
-        }
+# Grid coordinates (A1-E5 mapping)
+grid_coords = [f"{letter}{number}" for letter in "ABCDE" for number in range(1, 6)]
+coord_to_index = {coord: i for i, coord in enumerate(grid_coords)}
 
-        function updateSidePiece() {
-            sidePiece.innerHTML = '';
-            if (gameState.current_piece !== null && gameState.natural_section !== null) {
-                const img = document.createElement('img');
-                img.src = `https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/${gameState.current_image}?v=${gameState.gameId}`;
-                img.style.objectPosition = `-${(gameState.natural_section % 5) * 100}px -${Math.floor(gameState.natural_section / 5) * 100}px`;
-                sidePiece.appendChild(img);
-                console.log(`Updated side piece: natural_section=${gameState.natural_section}, image=${gameState.current_image}`);
-            }
-        }
+# Global variables for image loading and rendering state
+puzzle_img = None
+puzzle_img_url = ''
+last_drawn_state = {'pieces': {}, 'guesses': {}}
+is_initial_render = True
 
-        function updateLeaderboard() {
-            leaderboardList.innerHTML = '';
-            gameState.leaderboard.forEach(([user, wins]) => {
-                const li = document.createElement('li');
-                li.textContent = `${user}: ${wins} wins`;
-                leaderboardList.appendChild(li);
-            });
-        }
+# Preload audio from Glitch CDN
+win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3')
+win_audio.preload = 'auto'
+win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
+win_audio2.preload = 'auto'
 
-        function updateCooldown() {
-            cooldownTime.textContent = gameState.cooldownSeconds;
-            console.log(`Updated cooldown to ${gameState.cooldownSeconds}s`);
-        }
+# Cooldown timer state
+cooldown_duration = 5  # Default, will be updated from state
+last_timer_update = time.time()
+timer_value = cooldown_duration
 
-        function triggerWinAnimation(winner, prize) {
-            console.log(`Executing win animation for ${winner} with prize ${prize}`);
-            winText.textContent = `Congrats! ${winner} won ${prize} NFTOKEN!`;
-            winOverlay.style.display = 'flex';
-            console.log(`Showing win text: ${winText.textContent}`);
+# Helper function to deep merge dictionaries
+def deep_merge(target, source):
+    for key, value in source.items():
+        if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+            deep_merge(target[key], value)
+        else:
+            target[key] = value
 
-            const audio = new Audio('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3');
-            audio.play().catch(e => console.error('Audio playback failed:', e));
+# JavaScript function to load image and call Python callback
+def load_image_js(url, callback):
+    img = Image.new()
+    img.src = url
+    img.onload = create_proxy(lambda _: callback(img))
+    img.onerror = create_proxy(lambda _: callback(None))
 
-            console.log(`Triggering confetti animation, canvas visible: ${confettiCanvas.style.display !== 'none'}`);
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                zIndex: 999,
-                canvas: confettiCanvas
-            });
+# Python function to load image using JavaScript
+async def load_image(url):
+    global puzzle_img
+    try:
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
 
-            setTimeout(() => {
-                winOverlay.style.display = 'none';
-                console.log('Hiding win overlay');
-            }, 5000);
-        }
+        def callback(img):
+            if img is None:
+                console.log(f"Failed to load image from URL: {url}")
+                future.set_exception(Exception(f"Failed to load image: {url}"))
+            else:
+                console.log(f"Successfully loaded image from URL: {url}")
+                future.set_result(img)
 
-        function connectSSE() {
-            const source = new EventSource('/events');
-            console.log('Connecting to SSE endpoint');
+        load_image_js(url, create_proxy(callback))
+        result = await future
+        return result
+    except Exception as e:
+        console.log(f"Exception in load_image: {str(e)}")
+        placeholder = document.createElement('canvas')
+        placeholder.width = 2000
+        placeholder.height = 2000
+        ctx = placeholder.getContext('2d')
+        ctx.fillStyle = 'gray'
+        ctx.fillRect(0, 0, 2000, 2000)
+        ctx.fillStyle = 'white'
+        ctx.font = '100px Arial'
+        ctx.textAlign = 'center'
+        ctx.fillText('Image Failed', 1000, 1000)
+        return placeholder
 
-            source.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log(`SSE event received at ${new Date().toISOString()}:`, JSON.stringify(data));
-                    if (data.type === 'state' || data.type === 'ping') {
-                        updateState(data.state);
-                    } else if (data.type === 'win') {
-                        triggerWinAnimation(data.event.winner, data.event.prize);
-                        updateState(data.state);
-                    } else if (data.type === 'complete') {
-                        console.log('Puzzle completed:', data.event);
-                        updateState(data.state);
-                    } else if (data.type === 'error') {
-                        console.error('SSE error:', data.message);
-                    }
-                } catch (e) {
-                    console.error('Error parsing SSE event:', e, 'Raw data:', event.data);
-                }
-            };
+# Function to update the image and redraw
+async def update_image(url):
+    global puzzle_img, puzzle_img_url
+    if url != puzzle_img_url:
+        puzzle_img_url = url
+        puzzle_img = await load_image(url)
+        draw_grid()
+        draw_side_piece()
 
-            source.onerror = function() {
-                console.error('SSE connection error, reconnecting in 5s');
-                source.close();
-                setTimeout(connectSSE, 5000);
-            };
+def draw_grid():
+    global is_initial_render
+    try:
+        current_piece_count = len(state['pieces'])
+        last_piece_count = len(last_drawn_state['pieces'])
+        if not is_initial_render and current_piece_count < last_piece_count:
+            console.log(f"Piece count mismatch: current={current_piece_count}, last={last_piece_count}, forcing full redraw")
+            is_initial_render = True
 
-            return source;
-        }
+        if is_initial_render:
+            grid_ctx.clearRect(0, 0, 350, 350)
+            cell_size = 70
+            for i in range(25):
+                x = (i % 5) * cell_size
+                y = (i // 5) * cell_size
+                grid_ctx.strokeStyle = '#00ff00'
+                grid_ctx.lineWidth = 3
+                grid_ctx.strokeRect(x, y, cell_size, cell_size)
 
-        // Initialize
-        createGrid();
-        let sseSource = connectSSE();
+                coord = grid_coords[i]
+                if coord in state['pieces']:
+                    section = state['pieces'][coord]
+                    col = section % 5
+                    row = section // 5
+                    if puzzle_img:
+                        try:
+                            grid_ctx.drawImage(
+                                puzzle_img,
+                                col * 400, row * 400, 400, 400,
+                                x, y, cell_size, cell_size
+                            )
+                        except Exception as e:
+                            console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
+                            grid_ctx.fillStyle = 'green'
+                            grid_ctx.fillRect(x, y, cell_size, cell_size)
+                            grid_ctx.fillStyle = 'white'
+                            grid_ctx.font = '30px Bebas Neue'
+                            grid_ctx.textAlign = 'center'
+                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+                    else:
+                        grid_ctx.fillStyle = 'green'
+                        grid_ctx.fillRect(x, y, cell_size, cell_size)
+                        grid_ctx.fillStyle = 'white'
+                        grid_ctx.font = '30px Bebas Neue'
+                        grid_ctx.textAlign = 'center'
+                        grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+                elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
+                    grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
+                    grid_ctx.fillRect(x, y, cell_size, cell_size)
+                    grid_ctx.fillStyle = 'red'
+                    grid_ctx.font = '40px Bebas Neue'
+                    grid_ctx.textAlign = 'center'
+                    grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
+                else:
+                    grid_ctx.fillStyle = '#ccffcc'
+                    grid_ctx.font = '30px Bebas Neue'
+                    grid_ctx.textAlign = 'center'
+                    grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
+            is_initial_render = False
+            last_drawn_state['pieces'] = dict(state['pieces'])
+            last_drawn_state['guesses'] = dict(state['guesses'])
+        else:
+            cell_size = 70
+            for i in range(25):
+                coord = grid_coords[i]
+                current_piece = state['pieces'].get(coord)
+                current_guess = state['guesses'].get(coord)
+                last_piece = last_drawn_state['pieces'].get(coord)
+                last_guess = last_drawn_state['guesses'].get(coord)
+
+                if current_piece != last_piece or current_guess != last_guess or (last_piece is not None and current_piece is None):
+                    x = (i % 5) * cell_size
+                    y = (i // 5) * cell_size
+                    grid_ctx.clearRect(x, y, cell_size, cell_size)
+                    grid_ctx.strokeStyle = '#00ff00'
+                    grid_ctx.lineWidth = 3
+                    grid_ctx.strokeRect(x, y, cell_size, cell_size)
+
+                    if coord in state['pieces']:
+                        section = state['pieces'][coord]
+                        col = section % 5
+                        row = section // 5
+                        if puzzle_img:
+                            try:
+                                grid_ctx.drawImage(
+                                    puzzle_img,
+                                    col * 400, row * 400, 400, 400,
+                                    x, y, cell_size, cell_size
+                                )
+                            except Exception as e:
+                                console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
+                                grid_ctx.fillStyle = 'green'
+                                grid_ctx.fillRect(x, y, cell_size, cell_size)
+                                grid_ctx.fillStyle = 'white'
+                                grid_ctx.font = '30px Bebas Neue'
+                                grid_ctx.textAlign = 'center'
+                                grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+                        else:
+                            grid_ctx.fillStyle = 'green'
+                            grid_ctx.fillRect(x, y, cell_size, cell_size)
+                            grid_ctx.fillStyle = 'white'
+                            grid_ctx.font = '30px Bebas Neue'
+                            grid_ctx.textAlign = 'center'
+                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+                    elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
+                        grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
+                        grid_ctx.fillRect(x, y, cell_size, cell_size)
+                        grid_ctx.fillStyle = 'red'
+                        grid_ctx.font = '40px Bebas Neue'
+                        grid_ctx.textAlign = 'center'
+                        grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
+                    else:
+                        grid_ctx.fillStyle = '#ccffcc'
+                        grid_ctx.font = '30px Bebas Neue'
+                        grid_ctx.textAlign = 'center'
+                        grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
+
+            last_drawn_state['pieces'] = dict(state['pieces'])
+            last_drawn_state['guesses'] = dict(state['guesses'])
+    except Exception as e:
+        console.log(f"Error in draw_grid: {str(e)}")
+
+def draw_side_piece():
+    try:
+        side_ctx.clearRect(0, 0, 210, 210)
+        if state['natural_section'] is not None:
+            section = state['natural_section']
+            col = section % 5
+            row = section // 5
+            if puzzle_img:
+                try:
+                    side_ctx.drawImage(
+                        puzzle_img,
+                        col * 400, row * 400, 400, 400,
+                        0, 0, 210, 210
+                    )
+                except Exception as e:
+                    console.log(f"Error drawing side piece: {str(e)}")
+                    side_ctx.fillStyle = 'yellow'
+                    side_ctx.fillRect(0, 0, 210, 210)
+                    side_ctx.fillStyle = 'black'
+                    side_ctx.font = '30px Bebas Neue'
+                    side_ctx.textAlign = 'center'
+                    side_ctx.fillText(f"Piece {section}", 105, 105)
+            else:
+                side_ctx.fillStyle = 'yellow'
+                side_ctx.fillRect(0, 0, 210, 210)
+                side_ctx.fillStyle = 'black'
+                side_ctx.font = '30px Bebas Neue'
+                side_ctx.textAlign = 'center'
+                side_ctx.fillText(f"Piece {section}", 105, 105)
+            side_ctx.strokeStyle = '#ffd700'
+            side_ctx.lineWidth = 3
+            side_ctx.strokeRect(0, 0, 210, 210)
+    except Exception as e:
+        console.log(f"Error in draw_side_piece: {str(e)}")
+
+def update_leaderboard():
+    try:
+        console.log(f"Updating leaderboard with data: {state['leaderboard']}")
+        ul = document.getElementById('leaderboard-list')
+        ul.innerHTML = ''
+        if not state['leaderboard']:
+            li = document.createElement('li')
+            li.textContent = 'No leaderboard data yet'
+            ul.appendChild(li)
+        else:
+            for username, wins in state['leaderboard']:
+                li = document.createElement('li')
+                li.textContent = f'{username}: {wins} wins'
+                ul.appendChild(li)
+    except Exception as e:
+        console.log(f"Error in update_leaderboard: {str(e)}")
+
+def play_win_sound(is_complete):
+    try:
+        audio = win_audio2 if is_complete else win_audio
+        audio.currentTime = 0
+        promise = audio.play()
+        promise.catch(lambda e: console.log(f"Error playing sound: {str(e)}"))
+    except Exception as e:
+        console.log(f"Exception in play_win_sound: {str(e)}")
+
+def hide_win_text():
+    win_text = document.getElementById('win-announcement')
+    win_text.style.display = 'none'
+
+def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
+    console.log(f"Triggering win animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
+    try:
+        grid_canvas = document.getElementById('grid')
+        grid_rect = grid_canvas.getBoundingClientRect()
+        center_x = grid_rect.left + 175
+        center_y = grid_rect.top + 175
+
+        win_text = document.getElementById('win-announcement')
+        win_text.style.left = f"{center_x}px"
+        win_text.style.top = f"{center_y}px"
+
+        win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
+        win_text.classList.toggle('complete', is_complete)
+        setTimeout(create_proxy(hide_win_text), is_complete and 8000 or 5000)
+        win_text.style.display = 'block'
+        play_win_sound(is_complete)
+        window.triggerConfetti()
+    except Exception as e:
+        console.log(f"Error in trigger_win_animation: {str(e)}")
+
+def test_win_animation(event=None):
+    console.log("Testing win animation...")
+    trigger_win_animation(state['pieceId'], state.get('testUser', 'TestUser'), state.get('minPrize', 50), False)
+
+def update_cooldown_timer(timestamp=None):
+    global last_timer_update, timer_value, cooldown_duration
+    try:
+        now = time.time()
+        elapsed = now - last_timer_update
+        timer_value -= elapsed
+        if timer_value <= 0:
+            timer_value = cooldown_duration
+
+        last_timer_update = now
+
+        timer_element = document.getElementById('cooldown-timer')
+        timer_element.textContent = f"{round(timer_value)}"
+
+        requestAnimationFrame(create_proxy(update_cooldown_timer))
+    except Exception as e:
+        console.log(f"Error in update_cooldown_timer: {str(e)}")
+
+async def update_state(event_data):
+    global is_initial_render, cooldown_duration, timer_value, last_timer_update
+    console.log(f"Processing SSE event: {json.dumps(event_data)}")
+    try:
+        event_type = event_data.get('type', 'unknown')
+        if event_type == 'win' or event_type == 'complete':
+            winner = event_data['event'].get('winner', 'Unknown')
+            prize = event_data['event'].get('prize', state.get('minPrize', 50))
+            console.log(f"Triggering {event_type} animation for {winner} with prize {prize}")
+            trigger_win_animation(state['pieceId'], winner, prize, event_type == 'complete')
+
+        old_piece_id = state['pieceId']
+        old_game_id = state['gameId']
+        old_cooldown = state['cooldownSeconds']
+        if 'state' in event_data:
+            new_state = event_data['state']
+            deep_merge(state, new_state)
+
+        if state['gameId'] != old_game_id:
+            console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
+            is_initial_render = True
+
+        if state['cooldownSeconds'] != old_cooldown:
+            console.log(f"Cooldown changed: old={cooldown_duration}, new={state['cooldownSeconds']}")
+            cooldown_duration = state['cooldownSeconds']
+            timer_value = cooldown_duration
+            last_timer_update = time.time()
+            timer_element = document.getElementById('cooldown-timer')
+            timer_element.textContent = f"{round(timer_value)}"
+
+        new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
+        if state['current_image'] and state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
+            console.log(f"Updating image to: {new_image_url}")
+            await update_image(new_image_url)
+
+        draw_grid()
+        draw_side_piece()
+        update_leaderboard()
+    except Exception as e:
+        console.log(f"Error in update_state: {str(e)}")
+
+async def listen_sse():
+    while True:
+        try:
+            console.log("Connecting to SSE stream...")
+            es = EventSource.new('/events')
+            def on_message(event):
+                try:
+                    data = json.loads(event.data)
+                    console.log(f"SSE event received: {json.dumps(data)}")
+                    asyncio.ensure_future(update_state({
+                        "type": data.get('type', 'unknown'),
+                        "state": data.get('state', {}),
+                        "event": data.get('event', {})
+                    }))
+                except Exception as e:
+                    console.log(f"Error processing SSE event: {str(e)}")
+
+            es.onmessage = create_proxy(on_message)
+            es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
+
+            while True:
+                await asyncio.sleep(10)
+                if es.readyState == 2:
+                    console.log("SSE connection closed, reconnecting...")
+                    break
+        except Exception as e:
+            console.log(f"SSE error: {str(e)}, reconnecting...")
+        await asyncio.sleep(5)
+
+async def init():
+    global is_initial_render
+    try:
+        console.log("Fetching initial game state...")
+        resp = await pyfetch('/game_state')
+        data = await resp.json()
+        console.log(f"Initial game state: {json.dumps(data)}")
+        deep_merge(state, data)
+        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
+        draw_grid()
+        draw_side_piece()
+        update_leaderboard()
+        console.log("Starting cooldown timer...")
+        requestAnimationFrame(create_proxy(update_cooldown_timer))
+    except Exception as e:
+        console.log(f"Init error: {str(e)}")
+        draw_grid()
+        draw_side_piece()
+
+def start_game(event=None):
+    console.log("Starting game...")
+    document.getElementById('start-button').style.display = 'none'
+    document.getElementById('test-win-button').style.display = 'block'
+    document.querySelector('.container').style.display = 'flex'
+    asyncio.ensure_future(init())
+    asyncio.ensure_future(listen_sse())
+
+document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
+document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
     </script>
 </body>
 </html>
