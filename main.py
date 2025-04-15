@@ -546,10 +546,15 @@ async def main():
 
     @bot.event()
     async def event_message(message):
-        # Ignore messages sent by the bot itself to prevent echo loops
-        if message.author.name.lower() == bot.nick.lower():
+        # Skip if message.author is None (system messages) or if the message is an echo
+        if message.author is None or message.echo:
+            logger.debug(f"Skipping message: author={message.author}, echo={message.echo}")
             return
-        # Process commands
+        # Also skip if the message is from the bot itself
+        if message.author.name.lower() == bot.nick.lower():
+            logger.debug(f"Skipping bot's own message: {message.content}")
+            return
+        logger.debug(f"Processing message from {message.author.name}: {message.content}")
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
