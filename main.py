@@ -453,27 +453,46 @@ def get_game_state():
 @app.route('/events')
 def sse():
     def stream():
+        last_ping_time = 0
+        PING_INTERVAL = 5  # Send a ping every 5 seconds if no events
+
         while True:
             try:
-                event = game_state.event_queue.get(timeout=5)
-                logger.info(f"Sending SSE event to client: {json.dumps(event)}")
-                yield f"data: {json.dumps(event)}\n\n"
-            except queue.Empty:
-                event = {
-                    'type': 'ping',
-                    'state': game_state.get_state(),
-                    'event': {},
-                    'timestamp': time.time()
-                }
-                logger.info(f"Sending SSE ping event: {json.dumps(event)}")
-                yield f"data: {json.dumps(event)}\n\n"
+                # Try to get an event from the queue with a timeout
+                try:
+                    event = game_state.event_queue.get(timeout=PING_INTERVAL)
+                    logger.info(f"Sending SSE event to client: {json.dumps(event)}")
+                    yield f"data: {json.dumps(event)}\n\n"
+                    last_ping_time = time.time()  # Reset ping timer after sending an event
+                    continue
+                except queue.Empty:
+                    # If no event is available, check if it's time to send a ping
+                    current_time = time.time()
+                    if current_time - last_ping_time >= PING_INTERVAL:
+                        event = {
+                            'type': 'ping',
+                            'state': game_state.get_state(),
+                            'event': {},
+                            'timestamp': current_time
+                        }
+                        logger.info(f"Sending SSE ping event: {json.dumps(event)}")
+                        yield f"data: {json.dumps(event)}\n\n"
+                        last_ping_time = current_time
+                    # Sleep briefly to prevent tight looping
+                    time.sleep(0.1)
+                    continue
+
             except (BrokenPipeError, ConnectionError, OSError) as e:
                 logger.info(f"SSE client disconnected: {str(e)}")
                 break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
                 break
-    return Response(stream(), mimetype='text/event-stream')
+
+    response = Response(stream(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Connection'] = 'keep-alive'
+    return response
 
 @app.route('/health')
 def health_check():
@@ -546,11 +565,9 @@ async def main():
 
     @bot.event()
     async def event_message(message):
-        # Skip if message.author is None (system messages) or if the message is an echo
         if message.author is None or message.echo:
             logger.debug(f"Skipping message: author={message.author}, echo={message.echo}")
             return
-        # Also skip if the message is from the bot itself
         if message.author.name.lower() == bot.nick.lower():
             logger.debug(f"Skipping bot's own message: {message.content}")
             return
