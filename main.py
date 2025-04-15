@@ -58,6 +58,8 @@ LEADERBOARD_CACHE_DURATION = 60
 cache_lock = Lock()
 guess_lock = asyncio.Lock()
 processed_messages = deque(maxlen=1000)
+message_timestamps = deque(maxlen=1000)  # Track message times for debouncing
+user_locks = {}  # Per-user locks for commands
 
 class RateLimiter:
     def __init__(self, rate, per):
@@ -83,7 +85,7 @@ class RateLimiter:
                 return True
             return False
 
-global_rate_limiter = RateLimiter(rate=20, per=5)
+global_rate_limiter = RateLimiter(rate=10, per=5)  # Stricter rate limit
 
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
@@ -378,7 +380,7 @@ class GameState:
                             new_piece = random.choice(remaining_side_sections)
                             if new_piece in used_side_sections:
                                 remaining_side_sections.remove(new_piece)
-                                attempt += 1
+                                attempt \n                                attempt += 1
                                 continue
                             self.current_piece = new_piece
                             break
@@ -557,85 +559,98 @@ async def main():
     async def event_message(message):
         if message.echo or message.author is None:
             return
-        message_id = getattr(message, 'id', None)
-        if message_id:
-            if message_id in processed_messages:
-                logger.debug(f"Skipping duplicate message ID: {message_id}")
+        now = time.time()
+        message_id = getattr(message, 'id', f"no-id-{now}")
+        message_key = f"{message_id}-{message.author.name}-{message.content[:50]}"
+        
+        # Debounce: ignore messages within 100ms of the same key
+        for ts, key in list(message_timestamps):
+            if now - ts < 0.1 and key == message_key:
+                logger.debug(f"Debounced duplicate message: {message_key}")
                 return
-            processed_messages.append(message_id)
+        message_timestamps.append((now, message_key))
+
+        if message_id in processed_messages:
+            logger.debug(f"Skipping duplicate message ID: {message_id}")
+            return
+        processed_messages.append(message_id)
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
-        try:
+        username = ctx.author.name.lower().strip()
+        logger.info(f"Guess command invoked by {username}: {ctx.message.content}")
+        user_lock = user_locks.setdefault(username, asyncio.Lock())
+        async with user_lock:
             if not await global_rate_limiter.consume():
-                logger.info("Global rate limit exceeded, ignoring command")
+                logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
-                await game_state.guess(guess.upper(), ctx.author.name, ctx)
+                await game_state.guess(guess.upper(), username, ctx)
             else:
-                logger.debug(f"Ignored invalid command or coordinate: {ctx.message.content}")
-                await ctx.send(f"@{ctx.author.name} invalid coordinate! Use format like A1, B3, etc.")
-        except Exception as e:
-            logger.error(f"ERROR in guess_command: {str(e)}", exc_info=True)
-            await ctx.send(f"@{ctx.author.name} an error occurred while processing your guess. Please try again.")
+                logger.debug(f"Ignored invalid command or coordinate by {username}: {ctx.message.content}")
+                await ctx.send(f"@{username} invalid coordinate! Use format like A1, B3, etc.")
 
     @bot.command(name='cool')
     async def cool_command(ctx):
-        try:
+        username = ctx.author.name.lower().strip()
+        logger.info(f"Cool command invoked by {username}: {ctx.message.content}")
+        user_lock = user_locks.setdefault(username, asyncio.Lock())
+        async with user_lock:
             if not await global_rate_limiter.consume():
-                logger.info("Global rate limit exceeded, ignoring command")
+                logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
 
-            if ctx.author.name.lower() == 'nftopia':
+            if username == 'nftopia':
                 args = ctx.message.content.split(' ')
                 if len(args) > 1:
                     new_cooldown = args[1]
                     result = game_state.set_cooldown(new_cooldown)
                     await ctx.send(result)
                 else:
-                    await ctx.send(f"@{ctx.author.name} please provide a cooldown duration (e.g., !cool 30)")
-        except Exception as e:
-            logger.error(f"ERROR in cool_command: {str(e)}", exc_info=True)
-            if ctx.author.name.lower() == 'nftopia':
-                await ctx.send(f"@{ctx.author.name} an error occurred while setting the cooldown. Please try again.")
+                    await ctx.send(f"@{username} please provide a cooldown duration (e.g., !cool 30)")
+            else:
+                await ctx.send(f"@{username} only the broadcaster can set the cooldown!")
 
     @bot.command(name='win')
     async def win_command(ctx):
-        try:
+        username = ctx.author.name.lower().strip()
+        logger.info(f"Win command invoked by {username}: {ctx.message.content}")
+        user_lock = user_locks.setdefault(username, asyncio.Lock())
+        async with user_lock:
             if not await global_rate_limiter.consume():
-                logger.info("Global rate limit exceeded, ignoring command")
+                logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
 
-            if ctx.author.name.lower() == 'nftopia':
+            if username == 'nftopia':
                 args = ctx.message.content.split(' ')
                 if len(args) > 1:
                     prize_range = args[1]
                     result = game_state.set_prize(prize_range)
                     await ctx.send(result)
                 else:
-                    await ctx.send(f"@{ctx.author.name} please provide a prize range (e.g., !win 1-50)")
-        except Exception as e:
-            logger.error(f"ERROR in win_command: {str(e)}", exc_info=True)
-            if ctx.author.name.lower() == 'nftopia':
-                await ctx.send(f"@{ctx.author.name} an error occurred while setting the prize range. Please try again.")
+                    await ctx.send(f"@{username} please provide a prize range (e.g., !win 1-50)")
+            else:
+                await ctx.send(f"@{username} only the broadcaster can set the prize range!")
 
     @bot.command(name='testwin')
     async def test_win_command(ctx):
-        try:
+        username = ctx.author.name.lower().strip()
+        logger.info(f"Testwin command invoked by {username}: {ctx.message.content}")
+        user_lock = user_locks.setdefault(username, asyncio.Lock())
+        async with user_lock:
             if not await global_rate_limiter.consume():
-                logger.info("Global rate limit exceeded, ignoring command")
+                logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
 
-            if ctx.author.name.lower() == 'nftopia':
-                logger.info(f"Triggering test win event for {ctx.author.name}")
-                game_state.notify_event('win', {'winner': ctx.author.name, 'prize': game_state.get_random_prize()})
-                await ctx.send(f"@{ctx.author.name} triggered a test win event!")
-        except Exception as e:
-            logger.error(f"ERROR in test_win_command: {str(e)}", exc_info=True)
-            await ctx.send(f"@{ctx.author.name} an error occurred while triggering the test win event.")
+            if username == 'nftopia':
+                logger.info(f"Triggering test win event for {username}")
+                game_state.notify_event('win', {'winner': username, 'prize': game_state.get_random_prize()})
+                await ctx.send(f"@{username} triggered a test win event!")
+            else:
+                await ctx.send(f"@{username} only the broadcaster can trigger a test win!")
 
     global game_state
     game_state = await GameState.create(bot)
