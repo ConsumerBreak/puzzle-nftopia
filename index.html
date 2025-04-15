@@ -274,7 +274,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -655,7 +655,7 @@ async def init():
         console.log("Starting cooldown timer...")
         timer_element = document.getElementById('cooldown-timer')
         timer_element.textContent = f"{round(timer_value)}"
-        requestAnimationFrame(create_proxy(update_cooldown_timer ROADMAP
+        requestAnimationFrame(create_proxy(update_cooldown_timer))
     except Exception as e:
         console.log(f"Init error: {str(e)}")
         draw_grid()
