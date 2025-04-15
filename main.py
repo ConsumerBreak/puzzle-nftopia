@@ -455,7 +455,7 @@ def sse():
     def stream():
         while True:
             try:
-                event = game_state.event_queue.get(timeout=5)  # Reduced timeout for faster pings
+                event = game_state.event_queue.get(timeout=5)
                 logger.info(f"Sending SSE event to client: {json.dumps(event)}")
                 yield f"data: {json.dumps(event)}\n\n"
             except queue.Empty:
@@ -534,15 +534,23 @@ async def main():
 
     @bot.event()
     async def event_ready():
-        logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {bot.initial_channels}")
+        logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {[channel.name for channel in bot.connected_channels]}")
 
     @bot.event()
-    async def event_error(error, data):
-        logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
+    async def event_error(error, data=None):
+        logger.error(f"Twitch bot error: {str(error)}\nData: {data if data is not None else 'None'}")
 
     @bot.event()
     async def event_raw_data(data):
         logger.debug(f"Twitch raw data: {data}")
+
+    @bot.event()
+    async def event_message(message):
+        # Ignore messages sent by the bot itself to prevent echo loops
+        if message.author.name.lower() == bot.nick.lower():
+            return
+        # Process commands
+        await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
