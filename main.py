@@ -380,7 +380,7 @@ class GameState:
                             new_piece = random.choice(remaining_side_sections)
                             if new_piece in used_side_sections:
                                 remaining_side_sections.remove(new_piece)
-                                attempt \n                                attempt += 1
+                                attempt += 1
                                 continue
                             self.current_piece = new_piece
                             break
@@ -574,6 +574,7 @@ async def main():
             logger.debug(f"Skipping duplicate message ID: {message_id}")
             return
         processed_messages.append(message_id)
+        logger.info(f"Processing message: {message_key}")
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
