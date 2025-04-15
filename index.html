@@ -680,10 +680,12 @@ async def update_state(event_data):
         if event_type == 'win':
             winner = event_data['event'].get('winner', 'Unknown')
             prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], winner, prize, False)
+            piece_id = state.get('pieceId', 0)  # Ensure piece_id is fetched from the state
+            trigger_win_animation(piece_id, winner, prize, False)
         elif event_type == 'complete':
             prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], 'Everyone', prize, True)
+            piece_id = state.get('pieceId', 0)  # Ensure piece_id is fetched from the state
+            trigger_win_animation(piece_id, 'Everyone', prize, True)
     except Exception as e:
         console.log(f"Error in update_state: {str(e)}")
 
