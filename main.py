@@ -2,9 +2,9 @@ import os
 import random
 import json
 import aiohttp
-from flask import Flask, Response, send_file
+from flask import Flask, send_file
+from flask_socketio import SocketIO, emit
 from twitchio.ext import commands
-import queue
 import asyncio
 import logging
 import time
@@ -24,16 +24,18 @@ logger = logging.getLogger(__name__)
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'  # Required for Flask-SocketIO
+socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
 
 # Content Security Policy header
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
-    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob:;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob: ws: wss:;"
 )
 
 # Check for required environment variables
@@ -119,7 +121,6 @@ class GameState:
         self.reverse_section_mapping = {}
         self.game_id = 0
         self.piece_id = 0
-        self.event_queue = queue.Queue()
         self.last_guess_times = {}
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
@@ -257,7 +258,6 @@ class GameState:
             self.expected_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
             logger.info(f"Set initial piece: current_piece={self.current_piece}, natural_section={self.natural_section}, expected_coord={self.expected_coord}")
-        # Only update current_image if images are available, and cycle through them
         if self.images:
             logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
             self.current_image = self.images[self.image_index]
@@ -415,20 +415,14 @@ class GameState:
         return state
 
     def notify_state_update(self):
-        try:
-            event_data = {'type': 'state', 'state': self.get_state(), 'event': {}}
-            self.event_queue.put_nowait(event_data)
-            logger.info(f"Sent state update event: {json.dumps(event_data)}")
-        except queue.Full:
-            logger.warning("Event queue full, dropping state update")
+        event_data = {'type': 'state', 'state': self.get_state(), 'event': {}}
+        socketio.emit('game_event', event_data)
+        logger.info(f"Sent WebSocket state update event: {json.dumps(event_data)}")
 
     def notify_event(self, event_type, event_data):
-        try:
-            event = {'type': event_type, 'state': self.get_state(), 'event': event_data}
-            self.event_queue.put_nowait(event)
-            logger.info(f"Sent event: {json.dumps(event)}")
-        except queue.Full:
-            logger.warning(f"Event queue full, dropping event: {event_type}")
+        event = {'type': event_type, 'state': self.get_state(), 'event': event_data}
+        socketio.emit('game_event', event)
+        logger.info(f"Sent WebSocket event: {json.dumps(event)}")
 
 # Flask routes
 @app.route('/')
@@ -441,29 +435,24 @@ def index():
 def get_game_state():
     return game_state.get_state()
 
-@app.route('/events')
-def sse():
-    def stream():
-        while True:
-            try:
-                event = game_state.event_queue.get(timeout=30)
-                logger.info(f"Sending SSE event to client: {json.dumps(event)}")
-                yield f"data: {json.dumps(event)}\n\n"
-            except queue.Empty:
-                event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
-                logger.info(f"Sending SSE ping event: {json.dumps(event)}")
-                yield f"data: {json.dumps(event)}\n\n"
-            except (BrokenPipeError, ConnectionError, OSError) as e:
-                logger.info(f"SSE client disconnected: {str(e)}")
-                break
-            except Exception as e:
-                logger.error(f"SSE stream error: {str(e)}")
-                break
-    return Response(stream(), mimetype='text/event-stream')
-
 @app.route('/health')
 def health_check():
     return "OK", 200
+
+# WebSocket ping to keep connection alive
+@socketio.on('connect')
+def handle_connect():
+    logger.info("WebSocket client connected")
+    emit('game_event', {'type': 'connect', 'state': game_state.get_state(), 'event': {}})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    logger.info("WebSocket client disconnected")
+
+@socketio.on('ping')
+def handle_ping():
+    emit('game_event', {'type': 'ping', 'state': game_state.get_state(), 'event': {}})
+    logger.info("Sent WebSocket ping event")
 
 # Test Twitch token validity
 async def test_twitch_token():
@@ -489,7 +478,6 @@ async def start_bot_with_delay(bot):
     await asyncio.sleep(5)
     logger.info("Twitch bot delay completed, attempting to start bot...")
     try:
-        # Test token validity before starting the bot
         if await test_twitch_token():
             logger.info("Token is valid, starting bot...")
             await bot.start()
@@ -497,7 +485,6 @@ async def start_bot_with_delay(bot):
             logger.error("Skipping bot start due to invalid token.")
     except Exception as e:
         logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
-        # Retry connection after a delay
         logger.info("Retrying Twitch bot connection in 10 seconds...")
         await asyncio.sleep(10)
         try:
@@ -512,7 +499,6 @@ async def start_bot_with_delay(bot):
 async def main():
     logger.info("Main script starting")
 
-    # Create the Twitch bot instance inside the main coroutine
     bot = commands.Bot(
         token=os.environ['TWITCH_TOKEN'],
         client_id=os.environ['TWITCH_CLIENT_ID'],
@@ -521,7 +507,6 @@ async def main():
         initial_channels=['nftopia']
     )
 
-    # Twitch bot commands (defined after bot creation)
     @bot.event()
     async def event_ready():
         logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {bot.initial_channels}")
@@ -605,20 +590,16 @@ async def main():
             logger.error(f"ERROR in test_win_command: {str(e)}")
             await ctx.send("An error occurred while triggering the test win event.")
 
-    # Create GameState with the bot instance
     global game_state
     game_state = await GameState.create(bot)
 
-    # Schedule the Twitch bot task
     bot_task = asyncio.create_task(start_bot_with_delay(bot))
     logger.info("Twitch bot task created")
 
-    # Configure and run the Flask app with hypercorn
     config = Config()
     config.bind = ["0.0.0.0:10000"]
     logger.info("Starting Flask on port 10000 with hypercorn")
     await serve(app, config)
 
 if __name__ == '__main__':
-    # Run the main coroutine
     asyncio.run(main())
