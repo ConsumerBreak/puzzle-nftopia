@@ -335,7 +335,7 @@ class GameState:
                     return 'cooldown', f"@{username} wait {remaining_time} seconds"
 
                 # Update guess time after cooldown check
-                self.last_guess TIMES[username] = now
+                self.last_guess_times[username] = now
                 logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
 
                 # Check if already solved
