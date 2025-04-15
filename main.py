@@ -106,6 +106,26 @@ class MessageDeduplicator:
 
 message_deduplicator = MessageDeduplicator(window_seconds=5, max_size=1000)
 
+# Command deduplication cache (additional layer)
+class CommandDeduplicator:
+    def __init__(self, window_seconds=5, max_size=1000):
+        self.seen_commands = deque(maxlen=max_size)
+        self.window_seconds = window_seconds
+
+    def has_seen(self, command_id):
+        current_time = time.time()
+        while self.seen_commands and current_time - self.seen_commands[0][1] > self.window_seconds:
+            self.seen_commands.popleft()
+        for cmd_id, _ in self.seen_commands:
+            if cmd_id == command_id:
+                return True
+        return False
+
+    def add(self, command_id):
+        self.seen_commands.append((command_id, time.time()))
+
+command_deduplicator = CommandDeduplicator(window_seconds=5, max_size=1000)
+
 # Exponential backoff for API calls
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
@@ -592,9 +612,13 @@ async def main():
         # Use message ID for deduplication
         message_id = message.tags.get('id') if message.tags else None
         if not message_id:
-            # If no message ID, create a unique identifier based on timestamp and content
+            # Fallback if message ID is missing
             message_id = f"{message.timestamp}_{message.content}_{message.author.name if message.author else 'None'}"
-        
+            logger.warning(f"Message ID missing, using fallback ID: {message_id}")
+
+        # Log message details for debugging
+        logger.debug(f"Received message: ID={message_id}, Author={message.author.name if message.author else 'None'}, Content={message.content}, Tags={message.tags}")
+
         # Check if we've already processed this message
         if message_deduplicator.has_seen(message_id):
             logger.debug(f"Skipping duplicate message: ID={message_id}, Content={message.content}")
@@ -614,15 +638,20 @@ async def main():
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
         try:
+            # Rate limit check
             if not global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
+            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
-            if message_deduplicator.has_seen(message_id):
-                logger.debug(f"Skipping duplicate guess command: ID={message_id}, Content={ctx.message.content}")
+            command_id = f"guess_{message_id}"
+            if command_deduplicator.has_seen(command_id):
+                logger.debug(f"Skipping duplicate guess command: ID={command_id}, Content={ctx.message.content}")
                 return
-            message_deduplicator.add(message_id)
+            command_deduplicator.add(command_id)
+
+            logger.debug(f"Processing guess command: ID={command_id}, Content={ctx.message.content}")
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
@@ -640,11 +669,15 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
+            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
-            if message_deduplicator.has_seen(message_id):
-                logger.debug(f"Skipping duplicate cool command: ID={message_id}, Content={ctx.message.content}")
+            command_id = f"cool_{message_id}"
+            if command_deduplicator.has_seen(command_id):
+                logger.debug(f"Skipping duplicate cool command: ID={command_id}, Content={ctx.message.content}")
                 return
-            message_deduplicator.add(message_id)
+            command_deduplicator.add(command_id)
+
+            logger.debug(f"Processing cool command: ID={command_id}, Content={ctx.message.content}")
 
             if ctx.author.name.lower() == 'nftopia':
                 args = ctx.message.content.split(' ')
@@ -666,11 +699,15 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
+            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
-            if message_deduplicator.has_seen(message_id):
-                logger.debug(f"Skipping duplicate win command: ID={message_id}, Content={ctx.message.content}")
+            command_id = f"win_{message_id}"
+            if command_deduplicator.has_seen(command_id):
+                logger.debug(f"Skipping duplicate win command: ID={command_id}, Content={ctx.message.content}")
                 return
-            message_deduplicator.add(message_id)
+            command_deduplicator.add(command_id)
+
+            logger.debug(f"Processing win command: ID={command_id}, Content={ctx.message.content}")
 
             if ctx.author.name.lower() == 'nftopia':
                 args = ctx.message.content.split(' ')
@@ -692,11 +729,15 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
+            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
-            if message_deduplicator.has_seen(message_id):
-                logger.debug(f"Skipping duplicate testwin command: ID={message_id}, Content={ctx.message.content}")
+            command_id = f"testwin_{message_id}"
+            if command_deduplicator.has_seen(command_id):
+                logger.debug(f"Skipping duplicate testwin command: ID={command_id}, Content={ctx.message.content}")
                 return
-            message_deduplicator.add(message_id)
+            command_deduplicator.add(command_id)
+
+            logger.debug(f"Processing testwin command: ID={command_id}, Content={ctx.message.content}")
 
             if ctx.author.name.lower() == 'nftopia':
                 logger.info(f"Triggering test win event for {ctx.author.name}")
