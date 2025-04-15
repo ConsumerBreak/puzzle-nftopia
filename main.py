@@ -56,6 +56,8 @@ leaderboard_cache = None
 leaderboard_cache_timestamp = None
 LEADERBOARD_CACHE_DURATION = 60
 cache_lock = Lock()
+guess_lock = Lock()
+processed_messages = set()
 
 class RateLimiter:
     def __init__(self, rate, per):
@@ -313,22 +315,27 @@ class GameState:
 
     async def guess(self, coord, username, ctx):
         start_time = time.time()
-        try:
-            username = username.lower().strip()
-            now = time.time()
-            last_guess_time = self.last_guess_times.get(username)
-            time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
+        async with guess_lock:
+            try:
+                username = username.lower().strip()
+                now = time.time()
+                last_guess_time = self.last_guess_times.get(username)
+                time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
 
-            if last_guess_time and time_since_last_guess < self.cooldown_seconds:
-                remaining_time = round(self.cooldown_seconds - time_since_last_guess)
-                await ctx.send(f"@{username} wait {remaining_time} seconds")
-                logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
-                return
+                if last_guess_time and time_since_last_guess < self.cooldown_seconds:
+                    remaining_time = round(self.cooldown_seconds - time_since_last_guess)
+                    await ctx.send(f"@{username} wait {remaining_time} seconds")
+                    logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
+                    return
 
-            self.last_guess_times[username] = now
+                self.last_guess_times[username] = now
+                logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
 
-            logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
-            if coord not in self.pieces:
+                if coord in self.pieces:
+                    await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
+                    logger.info(f"Guess rejected for {username}: {coord} already solved")
+                    return
+
                 if coord == self.expected_coord:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
@@ -336,6 +343,8 @@ class GameState:
                     await ctx.send(f"@{username} You won {prize} NFTOKEN!")
                     await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
+                    logger.info(f"Win for {username} at {coord}, prize: {prize}")
+                    self.notify_event('win', {'winner': username, 'prize': prize})
 
                     used_natural_sections = set(self.pieces.values())
                     used_side_sections = set(self.reverse_section_mapping[ns] for ns in used_natural_sections)
@@ -385,19 +394,17 @@ class GameState:
                         self.expected_coord = self.index_to_coord(self.natural_section)
                         self.piece_id += 1
                         self.guesses = {}
-                        logger.info(f"Sending win event for {username}, prize: {prize}")
-                        self.notify_event('win', {'winner': username, 'prize': prize})
                 else:
                     self.guesses[coord] = 'miss'
                     await ctx.send(f"@{username} Wrong!")
-            else:
-                await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
-            self.notify_state_update()
-            logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
-        except Exception as e:
-            logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
-            await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
-            self.notify_state_update()
+                    logger.info(f"Miss for {username} at {coord}")
+
+                self.notify_state_update()
+                logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
+            except Exception as e:
+                logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
+                await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
+                self.notify_state_update()
 
     def get_state(self):
         sorted_leaderboard = sorted((self.cached_leaderboard or self.load_leaderboard_from_sheet()).items(),
@@ -426,7 +433,7 @@ class GameState:
             state = self.get_state()
             event_data = {'type': 'state', 'state': state, 'event': {}}
             self.event_queue.put_nowait(event_data)
-            logger.info(f"Sent state update event with guesses: {state['guesses']}")
+            logger.info(f"Sent state update event with guesses: {state['guesses']}, pieces: {state['pieces']}")
         except queue.Full:
             logger.warning("Event queue full, dropping state update")
 
@@ -455,7 +462,7 @@ def sse():
         while True:
             try:
                 event = game_state.event_queue.get(timeout=30)
-                logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}")
+                logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}, pieces: {event['state']['pieces']}")
                 yield f"data: {json.dumps(event)}\n\n"
                 game_state.event_queue.task_done()
             except queue.Empty:
@@ -543,6 +550,20 @@ async def main():
         logger.error(f"Twitch bot error: {str(error)}", exc_info=True)
         if data:
             logger.debug(f"Error data: {data}")
+
+    @bot.event()
+    async def event_message(message):
+        if message.echo or message.author is None:
+            return
+        message_id = getattr(message, 'id', None)
+        if message_id and message_id in processed_messages:
+            logger.debug(f"Skipping duplicate message ID: {message_id}")
+            return
+        if message_id:
+            processed_messages.add(message_id)
+            if len(processed_messages) > 1000:
+                processed_messages.pop()
+        await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
