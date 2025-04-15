@@ -274,7 +274,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -291,7 +291,7 @@
         }
 
         window.triggerConfetti = function() {
-            console.log("Triggering confetti animation");
+            console.log("Triggering confetti animation, canvas visible: " + (confettiCanvas.style.display !== 'none'));
             const particles = createConfetti();
             animateConfetti(particles);
         };
@@ -547,7 +547,6 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.display = 'block'
         play_win_sound(is_complete)
         window.triggerConfetti()
-        console.log("Confetti triggered, canvas visible: " + (confettiCanvas.style.display !== 'none'))
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
