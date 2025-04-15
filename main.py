@@ -56,8 +56,8 @@ leaderboard_cache = None
 leaderboard_cache_timestamp = None
 LEADERBOARD_CACHE_DURATION = 60
 cache_lock = Lock()
-guess_lock = Lock()
-processed_messages = set()
+guess_lock = asyncio.Lock()
+processed_messages = deque(maxlen=1000)
 
 class RateLimiter:
     def __init__(self, rate, per):
@@ -65,20 +65,23 @@ class RateLimiter:
         self.per = per
         self.tokens = rate
         self.last_refill = time.time()
+        self.lock = asyncio.Lock()
 
-    def refill(self):
-        now = time.time()
-        elapsed = now - self.last_refill
-        new_tokens = elapsed * (self.rate / self.per)
-        self.tokens = min(self.rate, self.tokens + new_tokens)
-        self.last_refill = now
+    async def refill(self):
+        async with self.lock:
+            now = time.time()
+            elapsed = now - self.last_refill
+            new_tokens = elapsed * (self.rate / self.per)
+            self.tokens = min(self.rate, self.tokens + new_tokens)
+            self.last_refill = now
 
-    def consume(self):
-        self.refill()
-        if self.tokens >= 1:
-            self.tokens -= 1
-            return True
-        return False
+    async def consume(self):
+        await self.refill()
+        async with self.lock:
+            if self.tokens >= 1:
+                self.tokens -= 1
+                return True
+            return False
 
 global_rate_limiter = RateLimiter(rate=20, per=5)
 
@@ -560,15 +563,13 @@ async def main():
             logger.debug(f"Skipping duplicate message ID: {message_id}")
             return
         if message_id:
-            processed_messages.add(message_id)
-            if len(processed_messages) > 1000:
-                processed_messages.pop()
+            processed_messages.append(message_id)
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
         try:
-            if not global_rate_limiter.consume():
+            if not await global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
@@ -585,7 +586,7 @@ async def main():
     @bot.command(name='cool')
     async def cool_command(ctx):
         try:
-            if not global_rate_limiter.consume():
+            if not await global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
@@ -605,7 +606,7 @@ async def main():
     @bot.command(name='win')
     async def win_command(ctx):
         try:
-            if not global_rate_limiter.consume():
+            if not await global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
@@ -625,7 +626,7 @@ async def main():
     @bot.command(name='testwin')
     async def test_win_command(ctx):
         try:
-            if not global_rate_limiter.consume():
+            if not await global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
