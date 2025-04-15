@@ -271,7 +271,7 @@ class GameState:
             self.current_piece = remaining_sections.pop(0)
             self.side_piece_section = self.current_piece
             self.natural_section = self.section_mapping[self.current_piece]
-            self.expectedgoes here_section = self.current_piece
+            self.expected_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
         if self.images:
             logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
