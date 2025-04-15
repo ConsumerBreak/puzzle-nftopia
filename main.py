@@ -19,10 +19,13 @@ from hypercorn.asyncio import serve
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Set twitchio logging to INFO to avoid leaking sensitive data
 logging.getLogger('twitchio').setLevel(logging.INFO)
 
 app = Flask(__name__)
 
+# Content Security Policy header
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -33,12 +36,14 @@ CSP_HEADER = (
     "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob:;"
 )
 
+# Check for required environment variables
 required_env_vars = ['TWITCH_TOKEN', 'TWITCH_CLIENT_ID', 'GOOGLE_CREDENTIALS']
 missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
 if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
+# Google Sheets setup
 try:
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     creds_dict = json.loads(creds_json)
@@ -49,16 +54,17 @@ except Exception as e:
     logger.error(f"Failed to initialize Google Sheets credentials: {str(e)}")
     raise
 
+# Spreadsheet configuration
 SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
 SHEET_NAME = 'Sheet1'
 
+# Leaderboard cache
 leaderboard_cache = None
 leaderboard_cache_timestamp = None
-LEADERBOARD_CACHE_DURATION = 60
+LEADERBOARD_CACHE_DURATION = 60  # Cache for 60 seconds to reduce API calls
 cache_lock = Lock()
-guess_lock = Lock()
-processed_messages = set()
 
+# Rate limiter for commands
 class RateLimiter:
     def __init__(self, rate, per):
         self.rate = rate
@@ -80,8 +86,9 @@ class RateLimiter:
             return True
         return False
 
-global_rate_limiter = RateLimiter(rate=20, per=5)
+global_rate_limiter = RateLimiter(rate=20, per=5)  # Increased rate for responsiveness
 
+# Exponential backoff for API calls
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
     while retries < max_retries:
@@ -98,6 +105,7 @@ def exponential_backoff(func, max_retries=5, base_delay=1):
             else:
                 raise e
 
+# Game state
 class GameState:
     def __init__(self, bot):
         self.bot = bot
@@ -115,12 +123,12 @@ class GameState:
         self.reverse_section_mapping = {}
         self.game_id = 0
         self.piece_id = 0
-        self.event_queue = queue.Queue(maxsize=100)
+        self.event_queue = queue.Queue(maxsize=100)  # Increased queue size
         self.last_guess_times = {}
         self.cooldown_seconds = 60
         self.min_prize = 1
         self.max_prize = 50
-        self.cached_leaderboard = None
+        self.cached_leaderboard = None  # Local cache for guesses
 
     @classmethod
     async def create(cls, bot):
@@ -130,6 +138,7 @@ class GameState:
         return instance
 
     async def initialize_images(self):
+        """Dynamically fetch puzzle images matching puzzleXX_00000.png in numerical order."""
         async def validate_image(image_name):
             url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
             try:
@@ -315,27 +324,22 @@ class GameState:
 
     async def guess(self, coord, username, ctx):
         start_time = time.time()
-        async with guess_lock:
-            try:
-                username = username.lower().strip()
-                now = time.time()
-                last_guess_time = self.last_guess_times.get(username)
-                time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
+        try:
+            username = username.lower().strip()
+            now = time.time()
+            last_guess_time = self.last_guess_times.get(username)
+            time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
 
-                if last_guess_time and time_since_last_guess < self.cooldown_seconds:
-                    remaining_time = round(self.cooldown_seconds - time_since_last_guess)
-                    await ctx.send(f"@{username} wait {remaining_time} seconds")
-                    logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
-                    return
+            if last_guess_time and time_since_last_guess < self.cooldown_seconds:
+                remaining_time = round(self.cooldown_seconds - time_since_last_guess)
+                await ctx.send(f"@{username} wait {remaining_time} seconds")
+                logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
+                return
 
-                self.last_guess_times[username] = now
-                logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
+            self.last_guess_times[username] = now
 
-                if coord in self.pieces:
-                    await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
-                    logger.info(f"Guess rejected for {username}: {coord} already solved")
-                    return
-
+            logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
+            if coord not in self.pieces:
                 if coord == self.expected_coord:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
@@ -343,8 +347,6 @@ class GameState:
                     await ctx.send(f"@{username} You won {prize} NFTOKEN!")
                     await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
-                    logger.info(f"Win for {username} at {coord}, prize: {prize}")
-                    self.notify_event('win', {'winner': username, 'prize': prize})
 
                     used_natural_sections = set(self.pieces.values())
                     used_side_sections = set(self.reverse_section_mapping[ns] for ns in used_natural_sections)
@@ -352,9 +354,8 @@ class GameState:
 
                     if not remaining_side_sections:
                         prize = self.get_random_prize()
+                        await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                         await ctx.send(f"!tip all {prize}")
-                        await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
-                        logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                         await asyncio.sleep(8)
                         self.initialize_puzzle()
@@ -364,9 +365,8 @@ class GameState:
                         while attempt < max_attempts:
                             if not remaining_side_sections:
                                 prize = self.get_random_prize()
+                                await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                                 await ctx.send(f"!tip all {prize}")
-                                await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
-                                logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                                 self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                                 await asyncio.sleep(8)
                                 self.initialize_puzzle()
@@ -380,9 +380,8 @@ class GameState:
                             break
                         if attempt >= max_attempts:
                             prize = self.get_random_prize()
+                            await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                             await ctx.send(f"!tip all {prize}")
-                            await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
-                            logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                             await asyncio.sleep(8)
                             self.initialize_puzzle()
@@ -394,19 +393,22 @@ class GameState:
                         self.expected_coord = self.index_to_coord(self.natural_section)
                         self.piece_id += 1
                         self.guesses = {}
+                        logger.info(f"Sending win event for {username}")
+                        self.notify_event('win', {'winner': username, 'prize': prize})
                 else:
                     self.guesses[coord] = 'miss'
                     await ctx.send(f"@{username} Wrong!")
-                    logger.info(f"Miss for {username} at {coord}")
-
-                self.notify_state_update()
-                logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
-            except Exception as e:
-                logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
-                await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
-                self.notify_state_update()
+            else:
+                await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
+            self.notify_state_update()
+            logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
+        except Exception as e:
+            logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
+            await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
+            self.notify_state_update()
 
     def get_state(self):
+        # Use cached leaderboard for guesses to avoid API calls
         sorted_leaderboard = sorted((self.cached_leaderboard or self.load_leaderboard_from_sheet()).items(),
                                    key=lambda x: x[1], reverse=True)
         state = {
@@ -433,7 +435,7 @@ class GameState:
             state = self.get_state()
             event_data = {'type': 'state', 'state': state, 'event': {}}
             self.event_queue.put_nowait(event_data)
-            logger.info(f"Sent state update event with guesses: {state['guesses']}, pieces: {state['pieces']}")
+            logger.info(f"Sent state update event with guesses: {state['guesses']}")
         except queue.Full:
             logger.warning("Event queue full, dropping state update")
 
@@ -442,10 +444,11 @@ class GameState:
             state = self.get_state()
             event = {'type': event_type, 'state': state, 'event': event_data}
             self.event_queue.put_nowait(event)
-            logger.info(f"Sent {event_type} event: {event_data}")
+            logger.info(f"Sent event: {event_type}")
         except queue.Full:
             logger.warning(f"Event queue full, dropping event: {event_type}")
 
+# Flask routes
 @app.route('/')
 def index():
     response = send_file('index.html', mimetype='text/html')
@@ -462,7 +465,7 @@ def sse():
         while True:
             try:
                 event = game_state.event_queue.get(timeout=30)
-                logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}, pieces: {event['state']['pieces']}")
+                logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}")
                 yield f"data: {json.dumps(event)}\n\n"
                 game_state.event_queue.task_done()
             except queue.Empty:
@@ -470,7 +473,7 @@ def sse():
                 logger.info(f"Sending SSE ping event")
                 yield f"data: {json.dumps(event)}\n\n"
             except (BrokenPipeError, ConnectionError, OSError) as e:
-                logger.debug(f"SSE client disconnected: {str(e)}")
+                logger.info(f"SSE client disconnected: {str(e)}")
                 break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
@@ -491,6 +494,7 @@ def health_check():
         logger.error(f"Health check failed: {str(e)}")
         return "Internal server error", 500
 
+# Test Twitch token validity
 async def test_twitch_token():
     token = os.environ['TWITCH_TOKEN']
     client_id = os.environ['TWITCH_CLIENT_ID']
@@ -507,6 +511,7 @@ async def test_twitch_token():
                 logger.error(f"Twitch token validation failed: HTTP {response.status}")
                 return False
 
+# Start the bot with a delay and robust retry logic
 async def start_bot_with_delay(bot):
     logger.info("Starting Twitch bot delay...")
     max_retries = 5
@@ -530,9 +535,11 @@ async def start_bot_with_delay(bot):
             await asyncio.sleep(delay)
     logger.error("Max retries reached, bot failed to start. Please check TWITCH_TOKEN and network connectivity.")
 
+# Main entry point
 async def main():
     logger.info("Main script starting")
 
+    # Create the Twitch bot instance
     bot = commands.Bot(
         token=os.environ['TWITCH_TOKEN'],
         client_id=os.environ['TWITCH_CLIENT_ID'],
@@ -541,6 +548,7 @@ async def main():
         initial_channels=['nftopia']
     )
 
+    # Twitch bot commands
     @bot.event()
     async def event_ready():
         logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {[channel.name for channel in bot.connected_channels]}")
@@ -551,21 +559,7 @@ async def main():
         if data:
             logger.debug(f"Error data: {data}")
 
-    @bot.event()
-    async def event_message(message):
-        if message.echo or message.author is None:
-            return
-        message_id = getattr(message, 'id', None)
-        if message_id and message_id in processed_messages:
-            logger.debug(f"Skipping duplicate message ID: {message_id}")
-            return
-        if message_id:
-            processed_messages.add(message_id)
-            if len(processed_messages) > 1000:
-                processed_messages.pop()
-        await bot.handle_commands(message)
-
-    @bot.command(name='g', aliases=['G'])
+    @bot.command(name='g')
     async def guess_command(ctx):
         try:
             if not global_rate_limiter.consume():
@@ -637,12 +631,15 @@ async def main():
             logger.error(f"ERROR in test_win_command: {str(e)}", exc_info=True)
             await ctx.send(f"@{ctx.author.name} an error occurred while triggering the test win event.")
 
+    # Create GameState with the bot instance
     global game_state
     game_state = await GameState.create(bot)
 
+    # Schedule the Twitch bot task
     bot_task = asyncio.create_task(start_bot_with_delay(bot))
     logger.info("Twitch bot task created")
 
+    # Configure and run the Flask app with hypercorn
     config = Config()
     config.bind = ["0.0.0.0:10000"]
     logger.info("Starting Flask on port 10000 with hypercorn")
