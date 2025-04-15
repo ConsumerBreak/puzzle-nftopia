@@ -20,8 +20,8 @@ from hypercorn.asyncio import serve
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Set twitchio logging to INFO to avoid leaking sensitive data
-logging.getLogger('twitchio').setLevel(logging.INFO)
+# Set twitchio logging to DEBUG for more detailed output
+logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
@@ -139,25 +139,20 @@ class GameState:
         return instance
 
     async def initialize_images(self):
-        """Validate predefined puzzle images in parallel."""
-        async def validate_image(image_name):
-            url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
-            try:
-                async with aiohttp.ClientSession() as session:
+        """Validate predefined puzzle images."""
+        valid_images = []
+        async with aiohttp.ClientSession() as session:
+            for image_name in self.images:
+                url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
+                try:
                     async with session.head(url, timeout=5) as response:
                         if response.status == 200:
+                            valid_images.append(image_name)
                             logger.info(f"Validated puzzle image: {image_name}")
-                            return image_name
                         else:
                             logger.warning(f"Image {image_name} not found: HTTP {response.status}")
-                            return None
-            except Exception as e:
-                logger.error(f"Error validating image {image_name}: {str(e)}")
-                return None
-
-        tasks = [validate_image(image_name) for image_name in self.images]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        valid_images = [img for img in results if img and not isinstance(img, Exception)]
+                except Exception as e:
+                    logger.error(f"Error validating image {image_name}: {str(e)}")
         self.images = valid_images if valid_images else ["placeholder.png"]
         self.current_image = self.images[0] if self.images else "placeholder.png"
         logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
@@ -476,7 +471,7 @@ async def test_twitch_token():
                 logger.info(f"Twitch token validation successful: {data}")
                 return True
             else:
-                logger.error(f"Twitch token validation failed: HTTP {response.status}")
+                logger.error(f"Twitch token validation failed: HTTP {response.status}, {await response.text()}")
                 return False
 
 # Start the bot with a delay and robust retry logic
@@ -516,16 +511,14 @@ async def main():
         initial_channels=['nftopia']
     )
 
-    # Twitch bot commands
+    # Twitch bot commands (defined after bot creation)
     @bot.event()
     async def event_ready():
-        logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {[channel.name for channel in bot.connected_channels]}")
+        logger.info(f"Bot connected to Twitch! Nick: {bot.nick}, Channels: {bot.initial_channels}")
 
     @bot.event()
-    async def event_error(error, data=None):
-        logger.error(f"Twitch bot error: {str(error)}", exc_info=True)
-        if data:
-            logger.debug(f"Error data: {data}")
+    async def event_error(error, data):
+        logger.error(f"Twitch bot error: {str(error)}\nData: {data}")
 
     @bot.event()
     async def event_raw_data(data):
