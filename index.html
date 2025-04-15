@@ -252,7 +252,7 @@
         }
 
         function animateConfetti(particles) {
-            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            confettiCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
             particles.forEach(p => {
                 p.x += p.vx;
                 p.y += p.vy;
@@ -262,7 +262,7 @@
                 p.opacity -= 0.005;
                 p.rotation += p.rotationSpeed;
 
-                if (p.y > confettiCanvas.height || p.x < 0 || p.x > confettiCanvas.width || p.opacity <= 0) return;
+                if (p.y > window.innerHeight || p.x < 0 || p.x > window.innerWidth || p.opacity <= 0) return;
 
                 confettiCtx.globalAlpha = p.opacity;
                 confettiCtx.fillStyle = p.color;
@@ -282,7 +282,7 @@
                 }
             });
 
-            const remainingParticles = particles.filter(p => p.y <= confettiCanvas.height && p.x >= 0 && p.x <= confettiCanvas.width && p.opacity > 0);
+            const remainingParticles = particles.filter(p => p.y <= window.innerHeight && p.x >= 0 && p.x <= window.innerWidth && p.opacity > 0);
             if (remainingParticles.length > 0) {
                 requestAnimationFrame(() => animateConfetti(remainingParticles));
             }
@@ -322,7 +322,7 @@ state = {
     'gameId': 0,
     'pieceId': 0,
     'cooldownSeconds': 5,
-    'minPrize': 1,
+    'minPrize': 50,
     'maxPrize': 50
 }
 
@@ -341,6 +341,10 @@ win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d
 win_audio.preload = 'auto'
 win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
 win_audio2.preload = 'auto'
+
+# Update queue to handle rapid state updates
+update_queue = []
+is_processing_updates = False
 
 # Cooldown timer state
 cooldown_duration = 5  # Default, will be updated from state
@@ -405,24 +409,80 @@ async def update_image(url):
 
 def draw_grid():
     global is_initial_render
-    try:
-        current_piece_count = len(state['pieces'])
-        last_piece_count = len(last_drawn_state['pieces'])
-        if not is_initial_render and current_piece_count < last_piece_count:
-            console.log(f"Piece count mismatch: current={current_piece_count}, last={last_piece_count}, forcing full redraw")
-            is_initial_render = True
+    current_piece_count = len(state['pieces'])
+    last_piece_count = len(last_drawn_state['pieces'])
+    if not is_initial_render and current_piece_count < last_piece_count:
+        console.log(f"Piece count mismatch: current={current_piece_count}, last={last_piece_count}, forcing full redraw")
+        is_initial_render = True
 
-        if is_initial_render:
-            grid_ctx.clearRect(0, 0, 350, 350)
-            cell_size = 70
-            for i in range(25):
+    if is_initial_render:
+        grid_ctx.clearRect(0, 0, 350, 350)
+        cell_size = 70
+        for i in range(25):
+            x = (i % 5) * cell_size
+            y = (i // 5) * cell_size
+            grid_ctx.strokeStyle = '#00ff00'
+            grid_ctx.lineWidth = 3
+            grid_ctx.strokeRect(x, y, cell_size, cell_size)
+
+            coord = grid_coords[i]
+            if coord in state['pieces']:
+                section = state['pieces'][coord]
+                col = section % 5
+                row = section // 5
+                if puzzle_img:
+                    try:
+                        grid_ctx.drawImage(
+                            puzzle_img,
+                            col * 400, row * 400, 400, 400,
+                            x, y, cell_size, cell_size
+                        )
+                    except Exception:
+                        grid_ctx.fillStyle = 'green'
+                        grid_ctx.fillRect(x, y, cell_size, cell_size)
+                        grid_ctx.fillStyle = 'white'
+                        grid_ctx.font = '30px Bebas Neue'
+                        grid_ctx.textAlign = 'center'
+                        grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+                else:
+                    grid_ctx.fillStyle = 'green'
+                    grid_ctx.fillRect(x, y, cell_size, cell_size)
+                    grid_ctx.fillStyle = 'white'
+                    grid_ctx.font = '30px Bebas Neue'
+                    grid_ctx.textAlign = 'center'
+                    grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+            elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
+                grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
+                grid_ctx.fillRect(x, y, cell_size, cell_size)
+                grid_ctx.fillStyle = 'red'
+                grid_ctx.font = '40px Bebas Neue'
+                grid_ctx.textAlign = 'center'
+                grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
+            else:
+                grid_ctx.fillStyle = '#ccffcc'
+                grid_ctx.font = '30px Bebas Neue'
+                grid_ctx.textAlign = 'center'
+                grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
+        is_initial_render = False
+        last_drawn_state['pieces'] = dict(state['pieces'])
+        last_drawn_state['guesses'] = dict(state['guesses'])
+    else:
+        cell_size = 70
+        for i in range(25):
+            coord = grid_coords[i]
+            current_piece = state['pieces'].get(coord)
+            current_guess = state['guesses'].get(coord)
+            last_piece = last_drawn_state['pieces'].get(coord)
+            last_guess = last_drawn_state['guesses'].get(coord)
+
+            if current_piece != last_piece or current_guess != last_guess or (last_piece is not None and current_piece is None):
                 x = (i % 5) * cell_size
                 y = (i // 5) * cell_size
+                grid_ctx.clearRect(x, y, cell_size, cell_size)
                 grid_ctx.strokeStyle = '#00ff00'
                 grid_ctx.lineWidth = 3
                 grid_ctx.strokeRect(x, y, cell_size, cell_size)
 
-                coord = grid_coords[i]
                 if coord in state['pieces']:
                     section = state['pieces'][coord]
                     col = section % 5
@@ -434,8 +494,7 @@ def draw_grid():
                                 col * 400, row * 400, 400, 400,
                                 x, y, cell_size, cell_size
                             )
-                        except Exception as e:
-                            console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
+                        except Exception:
                             grid_ctx.fillStyle = 'green'
                             grid_ctx.fillRect(x, y, cell_size, cell_size)
                             grid_ctx.fillStyle = 'white'
@@ -461,104 +520,40 @@ def draw_grid():
                     grid_ctx.font = '30px Bebas Neue'
                     grid_ctx.textAlign = 'center'
                     grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-            is_initial_render = False
-            last_drawn_state['pieces'] = dict(state['pieces'])
-            last_drawn_state['guesses'] = dict(state['guesses'])
-        else:
-            cell_size = 70
-            for i in range(25):
-                coord = grid_coords[i]
-                current_piece = state['pieces'].get(coord)
-                current_guess = state['guesses'].get(coord)
-                last_piece = last_drawn_state['pieces'].get(coord)
-                last_guess = last_drawn_state['guesses'].get(coord)
 
-                if current_piece != last_piece or current_guess != last_guess or (last_piece is not None and current_piece is None):
-                    x = (i % 5) * cell_size
-                    y = (i // 5) * cell_size
-                    grid_ctx.clearRect(x, y, cell_size, cell_size)
-                    grid_ctx.strokeStyle = '#00ff00'
-                    grid_ctx.lineWidth = 3
-                    grid_ctx.strokeRect(x, y, cell_size, cell_size)
-
-                    if coord in state['pieces']:
-                        section = state['pieces'][coord]
-                        col = section % 5
-                        row = section // 5
-                        if puzzle_img:
-                            try:
-                                grid_ctx.drawImage(
-                                    puzzle_img,
-                                    col * 400, row * 400, 400, 400,
-                                    x, y, cell_size, cell_size
-                                )
-                            except Exception as e:
-                                console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
-                                grid_ctx.fillStyle = 'green'
-                                grid_ctx.fillRect(x, y, cell_size, cell_size)
-                                grid_ctx.fillStyle = 'white'
-                                grid_ctx.font = '30px Bebas Neue'
-                                grid_ctx.textAlign = 'center'
-                                grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                        else:
-                            grid_ctx.fillStyle = 'green'
-                            grid_ctx.fillRect(x, y, cell_size, cell_size)
-                            grid_ctx.fillStyle = 'white'
-                            grid_ctx.font = '30px Bebas Neue'
-                            grid_ctx.textAlign = 'center'
-                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                    elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                        grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                        grid_ctx.fillRect(x, y, cell_size, cell_size)
-                        grid_ctx.fillStyle = 'red'
-                        grid_ctx.font = '40px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
-                    else:
-                        grid_ctx.fillStyle = '#ccffcc'
-                        grid_ctx.font = '30px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-
-            last_drawn_state['pieces'] = dict(state['pieces'])
-            last_drawn_state['guesses'] = dict(state['guesses'])
-    except Exception as e:
-        console.log(f"Error in draw_grid: {str(e)}")
+        last_drawn_state['pieces'] = dict(state['pieces'])
+        last_drawn_state['guesses'] = dict(state['guesses'])
 
 def draw_side_piece():
-    try:
-        side_ctx.clearRect(0, 0, 210, 210)
-        if state['natural_section'] is not None:
-            section = state['natural_section']
-            col = section % 5
-            row = section // 5
-            if puzzle_img:
-                try:
-                    side_ctx.drawImage(
-                        puzzle_img,
-                        col * 400, row * 400, 400, 400,
-                        0, 0, 210, 210
-                    )
-                except Exception as e:
-                    console.log(f"Error drawing side piece: {str(e)}")
-                    side_ctx.fillStyle = 'yellow'
-                    side_ctx.fillRect(0, 0, 210, 210)
-                    side_ctx.fillStyle = 'black'
-                    side_ctx.font = '30px Bebas Neue'
-                    side_ctx.textAlign = 'center'
-                    side_ctx.fillText(f"Piece {section}", 105, 105)
-            else:
+    side_ctx.clearRect(0, 0, 210, 210)
+    if state['natural_section'] is not None:
+        section = state['natural_section']
+        col = section % 5
+        row = section // 5
+        if puzzle_img:
+            try:
+                side_ctx.drawImage(
+                    puzzle_img,
+                    col * 400, row * 400, 400, 400,
+                    0, 0, 210, 210
+                )
+            except Exception:
                 side_ctx.fillStyle = 'yellow'
                 side_ctx.fillRect(0, 0, 210, 210)
                 side_ctx.fillStyle = 'black'
                 side_ctx.font = '30px Bebas Neue'
                 side_ctx.textAlign = 'center'
                 side_ctx.fillText(f"Piece {section}", 105, 105)
-            side_ctx.strokeStyle = '#ffd700'
-            side_ctx.lineWidth = 3
-            side_ctx.strokeRect(0, 0, 210, 210)
-    except Exception as e:
-        console.log(f"Error in draw_side_piece: {str(e)}")
+        else:
+            side_ctx.fillStyle = 'yellow'
+            side_ctx.fillRect(0, 0, 210, 210)
+            side_ctx.fillStyle = 'black'
+            side_ctx.font = '30px Bebas Neue'
+            side_ctx.textAlign = 'center'
+            side_ctx.fillText(f"Piece {section}", 105, 105)
+        side_ctx.strokeStyle = '#ffd700'
+        side_ctx.lineWidth = 3
+        side_ctx.strokeRect(0, 0, 210, 210)
 
 def update_leaderboard():
     try:
@@ -602,18 +597,23 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.left = f"{center_x}px"
         win_text.style.top = f"{center_y}px"
 
-        win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
-        win_text.classList.toggle('complete', is_complete)
-        setTimeout(create_proxy(hide_win_text), is_complete and 8000 or 5000)
+        if is_complete:
+            win_text.textContent = f"CONGRATULATIONS! EVERYONE WINS {prize} NFTOKEN!"
+            win_text.classList.add('complete')
+            setTimeout(create_proxy(hide_win_text), 8000)
+        else:
+            win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
+            win_text.classList.remove('complete')
+            setTimeout(create_proxy(hide_win_text), 5000)
         win_text.style.display = 'block'
         play_win_sound(is_complete)
-        window.triggerConfetti()
+        trigger_confetti()
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
 def test_win_animation(event=None):
     console.log("Testing win animation...")
-    trigger_win_animation(state['pieceId'], state.get('testUser', 'TestUser'), state.get('minPrize', 50), False)
+    trigger_win_animation(state['pieceId'], "TestUser", 50, False)
 
 def update_cooldown_timer(timestamp=None):
     global last_timer_update, timer_value, cooldown_duration
@@ -633,47 +633,92 @@ def update_cooldown_timer(timestamp=None):
     except Exception as e:
         console.log(f"Error in update_cooldown_timer: {str(e)}")
 
+async def process_update_queue():
+    global is_processing_updates
+    if is_processing_updates:
+        return
+    is_processing_updates = True
+    try:
+        while update_queue:
+            event_data = update_queue.pop(0)
+            await update_state(event_data)
+    except Exception as e:
+        console.log(f"Error in process_update_queue: {str(e)}")
+    finally:
+        is_processing_updates = False
+
 async def update_state(event_data):
     global is_initial_render, cooldown_duration, timer_value, last_timer_update
-    console.log(f"Processing SSE event: {json.dumps(event_data)}")
+    console.log(f"Updating state: {json.dumps(event_data)}")
     try:
         event_type = event_data.get('type', 'unknown')
-        if event_type == 'win' or event_type == 'complete':
+        if event_type == 'win':
             winner = event_data['event'].get('winner', 'Unknown')
-            prize = event_data['event'].get('prize', state.get('minPrize', 50))
-            console.log(f"Triggering {event_type} animation for {winner} with prize {prize}")
-            trigger_win_animation(state['pieceId'], winner, prize, event_type == 'complete')
+            prize = event_data['event'].get('prize', 50)
+            console.log(f"Processing win event for {winner} with prize {prize}")
+            trigger_win_animation(state['pieceId'], winner, prize, False)
+        elif event_type == 'complete':
+            prize = event_data['event'].get('prize', 50)
+            console.log(f"Processing complete event with prize {prize}")
+            trigger_win_animation(state['pieceId'], 'Everyone', prize, True)
 
-        old_piece_id = state['pieceId']
-        old_game_id = state['gameId']
-        old_cooldown = state['cooldownSeconds']
         if 'state' in event_data:
+            old_piece_id = state['pieceId']
+            old_game_id = state['gameId']
+            old_cooldown = state['cooldownSeconds']
             new_state = event_data['state']
             deep_merge(state, new_state)
 
-        if state['gameId'] != old_game_id:
-            console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
-            is_initial_render = True
+            if state['gameId'] != old_game_id:
+                console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
+                is_initial_render = True
 
-        if state['cooldownSeconds'] != old_cooldown:
-            console.log(f"Cooldown changed: old={cooldown_duration}, new={state['cooldownSeconds']}")
-            cooldown_duration = state['cooldownSeconds']
-            timer_value = cooldown_duration
-            last_timer_update = time.time()
-            timer_element = document.getElementById('cooldown-timer')
-            timer_element.textContent = f"{round(timer_value)}"
+            if state['cooldownSeconds'] != old_cooldown:
+                console.log(f"Cooldown changed: old={cooldown_duration}, new={state['cooldownSeconds']}")
+                cooldown_duration = state['cooldownSeconds']
+                timer_value = cooldown_duration
+                last_timer_update = time.time()
+                timer_element = document.getElementById('cooldown-timer')
+                timer_element.textContent = f"{round(timer_value)}"
 
-        new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
-        if state['current_image'] and state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
-            console.log(f"Updating image to: {new_image_url}")
-            await update_image(new_image_url)
+            new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
+            if state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
+                console.log(f"Updating image to: {new_image_url}")
+                await update_image(new_image_url)
 
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
+            draw_grid()
+            draw_side_piece()
+            update_leaderboard()
     except Exception as e:
         console.log(f"Error in update_state: {str(e)}")
 
+# Initial state fetch
+async def init():
+    global is_initial_render
+    try:
+        console.log("Fetching initial game state...")
+        resp = await pyfetch('/game_state')
+        data = await resp.json()
+        console.log(f"Initial game state: {json.dumps(data)}")
+        event_data = {
+            "type": "init",
+            "state": data,
+            "event": {}
+        }
+        update_queue.append(event_data)
+        await process_update_queue()
+        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
+        draw_grid()
+        draw_side_piece()
+        update_leaderboard()
+        console.log("Starting cooldown timer...")
+        requestAnimationFrame(create_proxy(update_cooldown_timer))
+    except Exception as e:
+        console.log(f"Init error: {str(e)}")
+        draw_grid()
+        draw_side_piece()
+
+# SSE function to listen for game state updates with reconnection
 async def listen_sse():
     while True:
         try:
@@ -683,11 +728,16 @@ async def listen_sse():
                 try:
                     data = json.loads(event.data)
                     console.log(f"SSE event received: {json.dumps(data)}")
-                    asyncio.ensure_future(update_state({
+                    event_data = {
                         "type": data.get('type', 'unknown'),
                         "state": data.get('state', {}),
                         "event": data.get('event', {})
-                    }))
+                    }
+                    if event_data['type'] in ['win', 'complete']:
+                        asyncio.ensure_future(update_state(event_data))
+                    else:
+                        update_queue.append(event_data)
+                        asyncio.ensure_future(process_update_queue())
                 except Exception as e:
                     console.log(f"Error processing SSE event: {str(e)}")
 
@@ -703,25 +753,7 @@ async def listen_sse():
             console.log(f"SSE error: {str(e)}, reconnecting...")
         await asyncio.sleep(5)
 
-async def init():
-    global is_initial_render
-    try:
-        console.log("Fetching initial game state...")
-        resp = await pyfetch('/game_state')
-        data = await resp.json()
-        console.log(f"Initial game state: {json.dumps(data)}")
-        deep_merge(state, data)
-        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-        console.log("Starting cooldown timer...")
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Init error: {str(e)}")
-        draw_grid()
-        draw_side_piece()
-
+# Start the game after user interaction
 def start_game(event=None):
     console.log("Starting game...")
     document.getElementById('start-button').style.display = 'none'
