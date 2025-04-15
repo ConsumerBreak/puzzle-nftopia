@@ -2,9 +2,9 @@ import os
 import random
 import json
 import aiohttp
-from flask import Flask, send_file
-from flask_socketio import SocketIO, emit
+from flask import Flask, Response, send_file
 from twitchio.ext import commands
+import queue
 import asyncio
 import logging
 import time
@@ -24,18 +24,16 @@ logger = logging.getLogger(__name__)
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'  # Required for Flask-SocketIO
-socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
 
 # Content Security Policy header
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
-    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-eval' 'unsafe-inline'; "
+    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob: ws: wss:;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob:;"
 )
 
 # Check for required environment variables
@@ -121,6 +119,7 @@ class GameState:
         self.reverse_section_mapping = {}
         self.game_id = 0
         self.piece_id = 0
+        self.event_queue = queue.Queue()
         self.last_guess_times = {}
         self.cooldown_seconds = 60  # Default from Replit
         self.min_prize = 1  # Default from Replit
@@ -415,14 +414,30 @@ class GameState:
         return state
 
     def notify_state_update(self):
-        event_data = {'type': 'state', 'state': self.get_state(), 'event': {}}
-        socketio.emit('game_event', event_data)
-        logger.info(f"Sent WebSocket state update event: {json.dumps(event_data)}")
+        try:
+            event_data = {
+                'type': 'state',
+                'state': self.get_state(),
+                'event': {},
+                'timestamp': time.time()
+            }
+            self.event_queue.put_nowait(event_data)
+            logger.info(f"Sent state update event: {json.dumps(event_data)}")
+        except queue.Full:
+            logger.warning("Event queue full, dropping state update")
 
     def notify_event(self, event_type, event_data):
-        event = {'type': event_type, 'state': self.get_state(), 'event': event_data}
-        socketio.emit('game_event', event)
-        logger.info(f"Sent WebSocket event: {json.dumps(event)}")
+        try:
+            event = {
+                'type': event_type,
+                'state': self.get_state(),
+                'event': event_data,
+                'timestamp': time.time()
+            }
+            self.event_queue.put_nowait(event)
+            logger.info(f"Sent event: {json.dumps(event)}")
+        except queue.Full:
+            logger.warning(f"Event queue full, dropping event: {event_type}")
 
 # Flask routes
 @app.route('/')
@@ -435,24 +450,34 @@ def index():
 def get_game_state():
     return game_state.get_state()
 
+@app.route('/events')
+def sse():
+    def stream():
+        while True:
+            try:
+                event = game_state.event_queue.get(timeout=5)  # Reduced timeout for faster pings
+                logger.info(f"Sending SSE event to client: {json.dumps(event)}")
+                yield f"data: {json.dumps(event)}\n\n"
+            except queue.Empty:
+                event = {
+                    'type': 'ping',
+                    'state': game_state.get_state(),
+                    'event': {},
+                    'timestamp': time.time()
+                }
+                logger.info(f"Sending SSE ping event: {json.dumps(event)}")
+                yield f"data: {json.dumps(event)}\n\n"
+            except (BrokenPipeError, ConnectionError, OSError) as e:
+                logger.info(f"SSE client disconnected: {str(e)}")
+                break
+            except Exception as e:
+                logger.error(f"SSE stream error: {str(e)}")
+                break
+    return Response(stream(), mimetype='text/event-stream')
+
 @app.route('/health')
 def health_check():
     return "OK", 200
-
-# WebSocket ping to keep connection alive
-@socketio.on('connect')
-def handle_connect():
-    logger.info("WebSocket client connected")
-    emit('game_event', {'type': 'connect', 'state': game_state.get_state(), 'event': {}})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    logger.info("WebSocket client disconnected")
-
-@socketio.on('ping')
-def handle_ping():
-    emit('game_event', {'type': 'ping', 'state': game_state.get_state(), 'event': {}})
-    logger.info("Sent WebSocket ping event")
 
 # Test Twitch token validity
 async def test_twitch_token():
