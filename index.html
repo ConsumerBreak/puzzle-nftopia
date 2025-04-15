@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Puzzle Break</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="https://pyscript.net/releases/2024.10.1/core.js" type="module"></script>
+    <script defer src="https://pyscript.net/releases/2024.9.1/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -174,6 +174,12 @@
     </style>
 </head>
 <body>
+    <script>
+        console.log("Starting to load Puzzle Break page...");
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Window error: ${message} at ${source}:${lineno}:${colno}`, error);
+        };
+    </script>
     <button id="start-button">Click to Start Game</button>
     <button id="test-win-button" style="display: none;">Test Win Animation</button>
     <div class="container" style="display: none;">
