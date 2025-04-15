@@ -5,7 +5,6 @@
     <title>Puzzle Break</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
     <script defer src="https://pyscript.net/releases/2024.10.1/core.js" type="module"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -297,7 +296,7 @@
     <script type="py" config='{"packages": ["requests"]}'>
 import json
 import asyncio
-from js import fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame, io
+from js import EventSource, fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame
 from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
@@ -348,8 +347,8 @@ cooldown_duration = 5  # Default, will be updated from state
 last_timer_update = time.time()
 timer_value = cooldown_duration
 
-# WebSocket setup
-socket = io.connect(window.location.origin)
+# Debouncing state to prevent duplicate updates
+last_processed_timestamp = 0
 
 # JavaScript function to load image and call Python callback
 def load_image_js(url, callback):
@@ -629,7 +628,14 @@ def update_cooldown_timer(timestamp=None):
         console.log(f"Error in update_cooldown_timer: {str(e)}")
 
 async def update_state(event_data):
-    global is_initial_render, cooldown_duration, timer_value, last_timer_update
+    global is_initial_render, cooldown_duration, timer_value, last_timer_update, last_processed_timestamp
+    # Debounce: Skip if this event has already been processed
+    timestamp = event_data.get('timestamp', 0)
+    if timestamp <= last_processed_timestamp:
+        console.log(f"Skipping duplicate event with timestamp: {timestamp}")
+        return
+    last_processed_timestamp = timestamp
+
     console.log(f"Updating state: {json.dumps(event_data)}")
     try:
         old_piece_id = state['pieceId']
@@ -664,6 +670,7 @@ async def update_state(event_data):
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
+        # Draw immediately to minimize lag
         draw_grid()
         draw_side_piece()
         update_leaderboard()
@@ -691,7 +698,8 @@ async def init():
         event_data = {
             "type": "init",
             "state": data,
-            "event": {}
+            "event": {},
+            "timestamp": time.time()
         }
         await update_state(event_data)
         await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
@@ -705,25 +713,37 @@ async def init():
         draw_grid()
         draw_side_piece()
 
-# WebSocket event listener
-def on_game_event(event):
-    try:
-        console.log(f"WebSocket event received: {json.dumps(event)}")
-        event_data = {
-            "type": event.get('type', 'unknown'),
-            "state": event.get('state', {}),
-            "event": event.get('event', {})
-        }
-        asyncio.ensure_future(update_state(event_data))
-    except Exception as e:
-        console.log(f"Error processing WebSocket event: {str(e)}")
+# SSE function to listen for game state updates with reconnection
+async def listen_sse():
+    while True:
+        try:
+            console.log("Connecting to SSE stream...")
+            es = EventSource.new('/events')
+            def on_message(event):
+                try:
+                    data = json.loads(event.data)
+                    console.log(f"SSE event received: {json.dumps(data)}")
+                    event_data = {
+                        "type": data.get('type', 'unknown'),
+                        "state": data.get('state', {}),
+                        "event": data.get('event', {}),
+                        "timestamp": data.get('timestamp', time.time())
+                    }
+                    asyncio.ensure_future(update_state(event_data))
+                except Exception as e:
+                    console.log(f"Error processing SSE event: {str(e)}")
 
-socket.on('game_event', create_proxy(on_game_event))
+            es.onmessage = create_proxy(on_message)
+            es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
 
-# Keep WebSocket connection alive with periodic pings
-def keep_alive():
-    socket.emit('ping')
-    setTimeout(create_proxy(keep_alive), 30000)
+            while True:
+                await asyncio.sleep(5)  # Reduced sleep time for faster reconnection
+                if es.readyState == 2:
+                    console.log("SSE connection closed, reconnecting...")
+                    break
+        except Exception as e:
+            console.log(f"SSE error: {str(e)}, reconnecting...")
+        await asyncio.sleep(2)  # Reduced reconnection delay
 
 # Start the game after user interaction
 def start_game(event=None):
@@ -732,7 +752,7 @@ def start_game(event=None):
     document.getElementById('test-win-button').style.display = 'block'
     document.querySelector('.container').style.display = 'flex'
     asyncio.ensure_future(init())
-    keep_alive()
+    asyncio.ensure_future(listen_sse())
 
 document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
 document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
