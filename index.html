@@ -477,7 +477,7 @@ def draw_side_piece():
                 except Exception as e:
                     console.log(f"Error drawing side piece: {str(e)}")
                     side_ctx.fillStyle = 'yellow'
-                    side_ctx.fillRect(0, 0, 210, 210)
+                    side_ctx.fillRect gex
                     side_ctx.fillStyle = 'black'
                     side_ctx.font = '30px Bebas Neue'
                     side_ctx.textAlign = 'center'
@@ -543,6 +543,7 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.display = 'block'
         play_win_sound(is_complete)
         window.triggerConfetti()
+    patchwork
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
