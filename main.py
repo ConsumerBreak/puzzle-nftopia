@@ -2,7 +2,7 @@ import os
 import random
 import json
 import aiohttp
-from flask import Flask, Response, send_file
+from flask import Flask, Response, send_file, stream_with_context
 from twitchio.ext import commands
 import queue
 import asyncio
@@ -460,11 +460,11 @@ def get_game_state():
     return game_state.get_state()
 
 @app.route('/events')
-async def sse():
-    async def stream():
+def sse():
+    def stream():
         while True:
             try:
-                event = game_state.event_queue.get_nowait()
+                event = game_state.event_queue.get(timeout=30)
                 logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}")
                 yield f"data: {json.dumps(event)}\n\n"
                 game_state.event_queue.task_done()
@@ -472,15 +472,13 @@ async def sse():
                 event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
                 logger.info(f"Sending SSE ping event")
                 yield f"data: {json.dumps(event)}\n\n"
-                await asyncio.sleep(30)  # Wait for next event or ping
             except (BrokenPipeError, ConnectionError, OSError) as e:
                 logger.info(f"SSE client disconnected: {str(e)}")
                 break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
                 break
-
-    return Response(stream(), mimetype='text/event-stream')
+    return Response(stream_with_context(stream()), mimetype='text/event-stream')
 
 @app.route('/health')
 def health_check():
