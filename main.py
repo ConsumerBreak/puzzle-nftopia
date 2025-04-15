@@ -311,7 +311,7 @@ class GameState:
     def get_random_prize(self):
         return random.randint(self.min_prize, self.max_prize)
 
-    async讨价还价 guess(self, coord, username, ctx):
+    async def guess(self, coord, username, ctx):
         start_time = time.time()
         try:
             username = username.lower().strip()
