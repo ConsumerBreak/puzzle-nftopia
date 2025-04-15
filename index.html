@@ -208,11 +208,11 @@
         function createConfetti() {
             const particles = [];
             const gridCanvas = document.getElementById('grid');
-            const gridRect = gridCanvas.getBoundingClient Rectangular();
+            const gridRect = gridCanvas.getBoundingClientRect();
             const centerX = gridRect.left + 175;
             const centerY = gridRect.top + 175;
 
-            console.log(`Confetti center: (${centerX}, ${centerY})`);
+            console.log(`Creating confetti at center: (${centerX}, ${centerY})`);
 
             for (let i = 0; i < 150; i++) {
                 const shapeType = Math.random();
@@ -274,7 +274,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    confettiCtx.rotate(p.rotation * Math.PI / 180);
+                    ctx.rotate(rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -285,10 +285,13 @@
             const remainingParticles = particles.filter(p => p.y <= confettiCanvas.height && p.x >= 0 && p.x <= confettiCanvas.width && p.opacity > 0);
             if (remainingParticles.length > 0) {
                 requestAnimationFrame(() => animateConfetti(remainingParticles));
+            } else {
+                console.log("Confetti animation completed");
             }
         }
 
         window.triggerConfetti = function() {
+            console.log("Triggering confetti animation");
             const particles = createConfetti();
             animateConfetti(particles);
         };
@@ -544,6 +547,7 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.display = 'block'
         play_win_sound(is_complete)
         window.triggerConfetti()
+        console.log("Confetti triggered, canvas visible: " + (confettiCanvas.style.display !== 'none'))
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
@@ -578,7 +582,7 @@ async def update_state(event_data):
         if event_type == 'win' or event_type == 'complete':
             winner = event_data['event'].get('winner', 'Unknown')
             prize = event_data['event'].get('prize', state.get('minPrize', 50))
-            console.log(f"Triggering {event_type} animation for {winner} with prize {prize}")
+            console.log(f"Executing {event_type} animation for {winner} with prize {prize}")
             trigger_win_animation(state['pieceId'], winner, prize, event_type == 'complete')
 
         old_piece_id = state['pieceId']
@@ -606,8 +610,9 @@ async def update_state(event_data):
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
-        # Optimize redraws
-        if is_initial_render or state['pieceId'] != last_drawn_state['pieceId'] or state['guesses'] != old_guesses:
+        # Force redraw on pieceId change or guesses update
+        if is_initial_render or state['pieceId'] != last_drawn_state['pieceId'] or state['guesses'] != last_drawn_state['guesses']:
+            console.log("Redrawing grid due to state change")
             draw_grid()
         draw_side_piece()
         update_leaderboard()
@@ -623,7 +628,7 @@ async def listen_sse():
             def on_message(event):
                 try:
                     data = json.loads(event.data)
-                    console.log(f"SSE event received: {json.dumps(data)}")
+                    console.log(f"SSE event received at {time.time()}: {json.dumps(data)}")
                     asyncio.ensure_future(update_state({
                         "type": data.get('type', 'unknown'),
                         "state": data.get('state', {}),
