@@ -326,17 +326,13 @@ class GameState:
                 username = username.lower().strip()
                 now = time.time()
 
-                # Check cooldown first
+                # Check cooldown only for subsequent guesses
                 last_guess_time = self.last_guess_times.get(username)
                 time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
                 if last_guess_time and time_since_last_guess < self.cooldown_seconds:
                     remaining_time = round(self.cooldown_seconds - time_since_last_guess)
                     logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
                     return 'cooldown', f"@{username} wait {remaining_time} seconds"
-
-                # Update guess time after cooldown check
-                self.last_guess_times[username] = now
-                logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
 
                 # Check if already solved
                 if coord in self.pieces:
@@ -395,11 +391,15 @@ class GameState:
                         self.expected_section = self.current_piece
                         self.expected_coord = self.index_to_coord(self.natural_section)
                         self.piece_id += 1
+                    # Update guess time after successful guess
+                    self.last_guess_times[username] = now
                     return 'success', f"@{username} Piece solved. You win {prize} NFTOKEN!"
                 else:
                     self.guesses[coord] = 'miss'
                     self.notify_state_update()
                     logger.info(f"Miss for {username} at {coord}")
+                    # Update guess time after miss
+                    self.last_guess_times[username] = now
                     return 'success', f"@{username} Wrong!"
 
             except Exception as e:
@@ -469,7 +469,7 @@ def sse():
     def stream():
         while True:
             try:
-                event = game_state.event_queue.get(timeout=1)
+                event = game_state.event_queue.get(timeout=2)
                 logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}, pieces: {event['state']['pieces']}")
                 yield f"data: {json.dumps(event)}\n\n"
                 game_state.event_queue.task_done()
@@ -477,13 +477,11 @@ def sse():
                 event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
                 logger.info(f"Sending SSE ping event")
                 yield f"data: {json.dumps(event)}\n\n"
-            except (BrokenPipeError, ConnectionError, OSError) as e:
-                logger.debug(f"SSE client disconnected: {str(e)}")
-                break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
+                yield f"data: {{'type': 'error', 'message': 'SSE connection error'}}\n\n"
                 break
-    return Response(stream_with_context(stream()), mimetype='text/event-stream')
+    return Response(stream_with_context(stream()), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache', 'Connection': 'keep-alive'})
 
 @app.route('/health')
 def health_check():
@@ -565,23 +563,22 @@ async def main():
             return
         now = time.time()
         message_id = getattr(message, 'id', f"no-id-{now}")
-        # Stricter deduplication key: username + command + content
-        command = message.content.split()[0].lower() if message.content else ""
-        content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:16]
-        dedupe_key = f"{message.author.name.lower()}-{command}-{content_hash}"
 
-        # Check for duplicates within 500ms
-        for ts, key in list(message_timestamps):
-            if now - ts < 0.5 and key == dedupe_key:
-                logger.debug(f"Skipping duplicate message: {dedupe_key}, msg_id={message_id}")
-                return
-        message_timestamps.append((now, dedupe_key))
-
-        # Track processed message IDs
+        # Deduplicate by message_id only
         if message_id in processed_messages:
             logger.debug(f"Skipping duplicate message ID: {message_id}")
             return
         processed_messages.append(message_id)
+
+        # Additional deduplication by content and time
+        command = message.content.split()[0].lower() if message.content else ""
+        content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:16]
+        dedupe_key = f"{message.author.name.lower()}-{command}-{content_hash}"
+        for ts, key in list(message_timestamps):
+            if now - ts < 1.0 and key == dedupe_key:
+                logger.debug(f"Skipping duplicate message: {dedupe_key}, msg_id={message_id}")
+                return
+        message_timestamps.append((now, dedupe_key))
 
         logger.info(f"Processing message: {dedupe_key}, msg_id={message_id}")
         await bot.handle_commands(message)
@@ -599,7 +596,7 @@ async def main():
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
                 status, response = await game_state.guess(guess.upper(), username, ctx)
-                if status in ('success', 'cooldown'):
+                if status in ('success', 'cooldown', 'error'):
                     await ctx.send(response)
             else:
                 logger.debug(f"Ignored invalid command or coordinate by {username}: {ctx.message.content}")
@@ -672,6 +669,7 @@ async def main():
 
     config = Config()
     config.bind = ["0.0.0.0:10000"]
+    config.keep_alive_timeout = 75  # Increase timeout to prevent SSE disconnects
     logger.info("Starting Flask on port 10000 with hypercorn")
     await serve(app, config)
 
