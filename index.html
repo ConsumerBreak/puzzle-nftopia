@@ -638,6 +638,7 @@ async def update_state(event_data):
 
     console.log(f"Updating state: {json.dumps(event_data)}")
     try:
+        start_time = time.time()  # Log start time
         old_piece_id = state['pieceId']
         old_game_id = state['gameId']
         old_cooldown = state['cooldownSeconds']
@@ -674,6 +675,9 @@ async def update_state(event_data):
         draw_grid()
         draw_side_piece()
         update_leaderboard()
+
+        end_time = time.time()  # Log end time
+        console.log(f"Time to process event and draw: {(end_time - start_time) * 1000} ms")
 
         event_type = event_data.get('type', 'unknown')
         console.log(f"Event type: {event_type}")
@@ -739,13 +743,13 @@ async def listen_sse():
             es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
 
             while True:
-                await asyncio.sleep(5)  # Reduced sleep time for faster reconnection
+                await asyncio.sleep(5)  # Check connection state
                 if es.readyState == 2:
                     console.log("SSE connection closed, reconnecting...")
                     break
         except Exception as e:
             console.log(f"SSE error: {str(e)}, reconnecting...")
-        await asyncio.sleep(2)  # Reduced reconnection delay
+        await asyncio.sleep(1)  # Reduced reconnection delay to 1 second
 
 # Start the game after user interaction
 def start_game(event=None):
