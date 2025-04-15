@@ -193,7 +193,7 @@
                 <div id="timer-description">
                     see what second you're on when you guess, and then you can guess again when the timer comes back to that second.
                 </div>
-                <div id="cooldown-timer">5</div>
+                <div id="cooldown-timer">60</div>
             </div>
         </div>
     </div>
@@ -274,7 +274,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    confettiCtx.rotate(p.rotation * Math.PI / 180);
+                    ctx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -321,7 +321,7 @@ state = {
     'reverseBaseMapping': {},
     'gameId': 0,
     'pieceId': 0,
-    'cooldownSeconds': 5,
+    'cooldownSeconds': 60,  # Default matches server
     'minPrize': 1,
     'maxPrize': 50
 }
@@ -343,7 +343,7 @@ win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09
 win_audio2.preload = 'auto'
 
 # Cooldown timer state
-cooldown_duration = 5  # Default, will be updated from state
+cooldown_duration = state['cooldownSeconds']  # Sync with server default
 last_timer_update = time.time()
 timer_value = cooldown_duration
 
@@ -477,7 +477,7 @@ def draw_side_piece():
                 except Exception as e:
                     console.log(f"Error drawing side piece: {str(e)}")
                     side_ctx.fillStyle = 'yellow'
-                    side_ctx.fillRect gex
+                    side_ctx.fillRect(0, 0, 210, 210)
                     side_ctx.fillStyle = 'black'
                     side_ctx.font = '30px Bebas Neue'
                     side_ctx.textAlign = 'center'
@@ -543,7 +543,6 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.display = 'block'
         play_win_sound(is_complete)
         window.triggerConfetti()
-    patchwork
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
@@ -558,7 +557,7 @@ def update_cooldown_timer(timestamp=None):
         elapsed = now - last_timer_update
         timer_value -= elapsed
         if timer_value <= 0:
-            timer_value = cooldown_duration
+            timer_value = cooldown_duration  # Reset to current cooldown_duration
 
         last_timer_update = now
 
@@ -640,19 +639,23 @@ async def listen_sse():
         await asyncio.sleep(2)
 
 async def init():
-    global is_initial_render
+    global is_initial_render, cooldown_duration, timer_value
     try:
         console.log("Fetching initial game state...")
         resp = await pyfetch('/game_state')
         data = await resp.json()
         console.log(f"Initial game state: {json.dumps(data)}")
         deep_merge(state, data)
+        cooldown_duration = state['cooldownSeconds']
+        timer_value = cooldown_duration
         await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
         draw_grid()
         draw_side_piece()
         update_leaderboard()
         console.log("Starting cooldown timer...")
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
+        timer_element = document.getElementById('cooldown-timer')
+        timer_element.textContent = f"{round(timer_value)}"
+        requestAnimationFrame(create_proxy(update_cooldown_timer ROADMAP
     except Exception as e:
         console.log(f"Init error: {str(e)}")
         draw_grid()
