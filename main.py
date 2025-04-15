@@ -85,7 +85,7 @@ class RateLimiter:
                 return True
             return False
 
-global_rate_limiter = RateLimiter(rate=10, per=5)  # Stricter rate limit
+global_rate_limiter = RateLimiter(rate=10, per=5)
 
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
@@ -331,7 +331,7 @@ class GameState:
                 if last_guess_time and time_since_last_guess < self.cooldown_seconds:
                     remaining_time = round(self.cooldown_seconds - time_since_last_guess)
                     logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
-                    return False, f"@{username} wait {remaining_time} seconds"
+                    return 'cooldown', f"@{username} wait {remaining_time} seconds"
 
                 # Update guess time after cooldown check
                 self.last_guess_times[username] = now
@@ -340,14 +340,15 @@ class GameState:
                 # Check if already solved
                 if coord in self.pieces:
                     logger.info(f"Guess rejected for {username}: {coord} already solved")
-                    return False, f"@{username} {coord} has already been solved. Try another spot!"
+                    return 'error', f"@{username} {coord} has already been solved. Try another spot!"
 
                 # Process win or miss
                 if coord == self.expected_coord:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
-                    # Async leaderboard update to reduce lag
+                    self.guesses = {}  # Clear guesses before notifying
+                    self.notify_state_update()
                     asyncio.create_task(self.async_update_leaderboard(username))
                     logger.info(f"Win for {username} at {coord}, prize: {prize}")
                     self.notify_event('win', {'winner': username, 'prize': prize})
@@ -386,25 +387,23 @@ class GameState:
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                             await asyncio.sleep(8)
                             self.initialize_puzzle()
-                            return True, f"@{username} You won {prize} NFTOKEN!"
+                            return 'success', f"@{username} Piece solved. You win {prize} NFTOKEN!"
 
                         self.side_piece_section = self.current_piece
                         self.natural_section = self.section_mapping[self.current_piece]
                         self.expected_section = self.current_piece
                         self.expected_coord = self.index_to_coord(self.natural_section)
                         self.piece_id += 1
-                        self.guesses = {}  # Clear guesses on win
-                    return True, f"@{username} You won {prize} NFTOKEN!"
+                    return 'success', f"@{username} Piece solved. You win {prize} NFTOKEN!"
                 else:
                     self.guesses[coord] = 'miss'
+                    self.notify_state_update()
                     logger.info(f"Miss for {username} at {coord}")
-                    return True, f"@{username} Wrong!"
+                    return 'success', f"@{username} Wrong!"
 
-                self.notify_state_update()
-                logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
             except Exception as e:
                 logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
-                return False, f"@{username} an error occurred while processing your guess. Please try again."
+                return 'error', f"@{username} an error occurred while processing your guess. Please try again."
 
     async def async_update_leaderboard(self, username):
         try:
@@ -467,7 +466,7 @@ def sse():
     def stream():
         while True:
             try:
-                event = game_state.event_queue.get(timeout=30)
+                event = game_state.event_queue.get(timeout=1)
                 logger.info(f"Sending SSE event with guesses: {event['state']['guesses']}, pieces: {event['state']['pieces']}")
                 yield f"data: {json.dumps(event)}\n\n"
                 game_state.event_queue.task_done()
@@ -563,7 +562,7 @@ async def main():
             return
         now = time.time()
         message_id = getattr(message, 'id', f"no-id-{now}")
-        message_key = f"{message_id}-{message.author.name}-{message.content[:50]}-{now}"
+        message_key = f"{message.author.name}-{message.content}-{message_id}"
         
         # Stricter deduplication
         if message_id in processed_messages:
@@ -571,9 +570,9 @@ async def main():
             return
         processed_messages.append(message_id)
 
-        # Debounce: ignore messages within 100ms of the same key
+        # Debounce: ignore messages within 200ms of the same key
         for ts, key in list(message_timestamps):
-            if now - ts < 0.1 and key == message_key:
+            if now - ts < 0.2 and key == message_key:
                 logger.debug(f"Debounced duplicate message: {message_key}")
                 return
         message_timestamps.append((now, message_key))
@@ -593,8 +592,8 @@ async def main():
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
-                success, response = await game_state.guess(guess.upper(), username, ctx)
-                if success:
+                status, response = await game_state.guess(guess.upper(), username, ctx)
+                if status in ('success', 'cooldown'):
                     await ctx.send(response)
             else:
                 logger.debug(f"Ignored invalid command or coordinate by {username}: {ctx.message.content}")
