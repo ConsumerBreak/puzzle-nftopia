@@ -317,34 +317,37 @@ class GameState:
         return random.randint(self.min_prize, self.max_prize)
 
     async def guess(self, coord, username, ctx):
-        start_time = time.time()
         async with guess_lock:
             try:
+                start_time = time.time()
                 username = username.lower().strip()
                 now = time.time()
+
+                # Check cooldown first
                 last_guess_time = self.last_guess_times.get(username)
                 time_since_last_guess = now - last_guess_time if last_guess_time else float('inf')
-
                 if last_guess_time and time_since_last_guess < self.cooldown_seconds:
                     remaining_time = round(self.cooldown_seconds - time_since_last_guess)
-                    await ctx.send(f"@{username} wait {remaining_time} seconds")
                     logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
+                    await ctx.send(f"@{username} wait {remaining_time} seconds")
                     return
 
+                # Update guess time after cooldown check
                 self.last_guess_times[username] = now
                 logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
 
+                # Check if already solved
                 if coord in self.pieces:
-                    await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
                     logger.info(f"Guess rejected for {username}: {coord} already solved")
+                    await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
                     return
 
+                # Process win or miss
                 if coord == self.expected_coord:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
                     await ctx.send(f"@{username} You won {prize} NFTOKEN!")
-                    await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
                     logger.info(f"Win for {username} at {coord}, prize: {prize}")
                     self.notify_event('win', {'winner': username, 'prize': prize})
@@ -355,7 +358,6 @@ class GameState:
 
                     if not remaining_side_sections:
                         prize = self.get_random_prize()
-                        await ctx.send(f"!tip all {prize}")
                         await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                         logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
@@ -367,7 +369,6 @@ class GameState:
                         while attempt < max_attempts:
                             if not remaining_side_sections:
                                 prize = self.get_random_prize()
-                                await ctx.send(f"!tip all {prize}")
                                 await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                                 logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                                 self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
@@ -383,7 +384,6 @@ class GameState:
                             break
                         if attempt >= max_attempts:
                             prize = self.get_random_prize()
-                            await ctx.send(f"!tip all {prize}")
                             await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                             logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
@@ -407,7 +407,6 @@ class GameState:
             except Exception as e:
                 logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
                 await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
-                self.notify_state_update()
 
     def get_state(self):
         sorted_leaderboard = sorted((self.cached_leaderboard or self.load_leaderboard_from_sheet()).items(),
@@ -559,10 +558,10 @@ async def main():
         if message.echo or message.author is None:
             return
         message_id = getattr(message, 'id', None)
-        if message_id and message_id in processed_messages:
-            logger.debug(f"Skipping duplicate message ID: {message_id}")
-            return
         if message_id:
+            if message_id in processed_messages:
+                logger.debug(f"Skipping duplicate message ID: {message_id}")
+                return
             processed_messages.append(message_id)
         await bot.handle_commands(message)
 
