@@ -335,7 +335,7 @@ class GameState:
                     return 'cooldown', f"@{username} wait {remaining_time} seconds"
 
                 # Update guess time after cooldown check
-                self.last_guess_times[username] = now
+                self.last_guess TIMES[username] = now
                 logger.info(f"Processing guess: coord={coord}, username={username}, expected_coord={self.expected_coord}")
 
                 # Check if already solved
@@ -544,7 +544,7 @@ async def main():
     bot = commands.Bot(
         token=os.environ['TWITCH_TOKEN'],
         client_id=os.environ['TWITCH_CLIENT_ID'],
-        nick='nftopia_puzzle_bot',
+        nick='nftopia_bot',
         prefix='!',
         initial_channels=['nftopia']
     )
@@ -565,24 +565,25 @@ async def main():
             return
         now = time.time()
         message_id = getattr(message, 'id', f"no-id-{now}")
-        # Hash content for stricter deduplication
+        # Stricter deduplication key: username + command + content
+        command = message.content.split()[0].lower() if message.content else ""
         content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:16]
-        message_key = f"{message.author.name}-{content_hash}-{message_id}"
-        
-        # Stricter deduplication
+        dedupe_key = f"{message.author.name.lower()}-{command}-{content_hash}"
+
+        # Check for duplicates within 500ms
+        for ts, key in list(message_timestamps):
+            if now - ts < 0.5 and key == dedupe_key:
+                logger.debug(f"Skipping duplicate message: {dedupe_key}, msg_id={message_id}")
+                return
+        message_timestamps.append((now, dedupe_key))
+
+        # Track processed message IDs
         if message_id in processed_messages:
             logger.debug(f"Skipping duplicate message ID: {message_id}")
             return
         processed_messages.append(message_id)
 
-        # Debounce: ignore messages within 200ms of the same key
-        for ts, key in list(message_timestamps):
-            if now - ts < 0.2 and key == message_key:
-                logger.debug(f"Debounced duplicate message: {message_key}")
-                return
-        message_timestamps.append((now, message_key))
-
-        logger.info(f"Processing message: {message_key}")
+        logger.info(f"Processing message: {dedupe_key}, msg_id={message_id}")
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
@@ -628,9 +629,9 @@ async def main():
     @bot.command(name='win')
     async def win_command(ctx):
         username = ctx.author.name.lower().strip()
+        logger.info(f"Win command invoked by {username}: {ctx.message.content}")
         user_lock = user_locks.setdefault(username, asyncio.Lock())
         async with user_lock:
-            logger.info(f"Win command invoked by {username}: {ctx.message.content}")
             if not await global_rate_limiter.consume():
                 logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
