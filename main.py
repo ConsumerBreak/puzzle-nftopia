@@ -271,7 +271,7 @@ class GameState:
             self.current_piece = remaining_sections.pop(0)
             self.side_piece_section = self.current_piece
             self.natural_section = self.section_mapping[self.current_piece]
-            self.expected_section = self.current_piece
+            self.expectedgoes here_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
         if self.images:
             logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
@@ -315,7 +315,7 @@ class GameState:
                 raise ValueError("Minimum prize cannot be greater than maximum prize!")
             self.min_prize = min_val
             self.max_prize = max_val
-            return f"Prize range has been set to {min_val}-{max_val} Break Bucks"
+            return f"Prize range has been set to {min_val}-{max_val} NFTOKEN"
         except ValueError as e:
             return f"Invalid prize range! {str(e)}"
 
@@ -344,7 +344,7 @@ class GameState:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
-                    await ctx.send(f"@{username} You won {prize} Break Bucks!")
+                    await ctx.send(f"@{username} You won {prize} NFTOKEN!")
                     await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
 
@@ -354,7 +354,7 @@ class GameState:
 
                     if not remaining_side_sections:
                         prize = self.get_random_prize()
-                        await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                        await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                         await ctx.send(f"!tip all {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                         await asyncio.sleep(8)
@@ -365,7 +365,7 @@ class GameState:
                         while attempt < max_attempts:
                             if not remaining_side_sections:
                                 prize = self.get_random_prize()
-                                await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                                await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                                 await ctx.send(f"!tip all {prize}")
                                 self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                                 await asyncio.sleep(8)
@@ -380,7 +380,7 @@ class GameState:
                             break
                         if attempt >= max_attempts:
                             prize = self.get_random_prize()
-                            await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                            await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                             await ctx.send(f"!tip all {prize}")
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                             await asyncio.sleep(8)
@@ -473,7 +473,7 @@ def sse():
                 logger.info(f"Sending SSE ping event")
                 yield f"data: {json.dumps(event)}\n\n"
             except (BrokenPipeError, ConnectionError, OSError) as e:
-                logger.info(f"SSE client disconnected: {str(e)}")
+                logger.debug(f"SSE client disconnected: {str(e)}")
                 break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
@@ -570,6 +570,7 @@ async def main():
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
                 await game_state.guess(guess.upper(), ctx.author.name, ctx)
             else:
+                logger.debug(f"Ignored invalid command or coordinate: {ctx.message.content}")
                 await ctx.send(f"@{ctx.author.name} invalid coordinate! Use format like A1, B3, etc.")
         except Exception as e:
             logger.error(f"ERROR in guess_command: {str(e)}", exc_info=True)
