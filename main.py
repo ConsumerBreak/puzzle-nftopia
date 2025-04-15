@@ -40,7 +40,7 @@ CSP_HEADER = (
 required_env_vars = ['TWITCH_TOKEN', 'TWITCH_CLIENT_ID', 'GOOGLE_CREDENTIALS']
 missing_vars = [var for var in required_env_vars if var not in os.environ]
 if missing_vars:
-    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}.")
+    raise EnvironmentError(f  raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}.")
 
 # Google Sheets setup
 creds_json = os.environ.get('GOOGLE_CREDENTIALS')
@@ -477,30 +477,29 @@ async def test_twitch_token():
                 logger.error(f"Twitch token validation failed: HTTP {response.status}, {await response.text()}")
                 return False
 
-# Start the bot with a delay and detailed error handling
+# Start the bot with a delay and robust retry logic
 async def start_bot_with_delay(bot):
     logger.info("Starting Twitch bot delay...")
-    await asyncio.sleep(5)
-    logger.info("Twitch bot delay completed, attempting to start bot...")
-    try:
-        # Test token validity before starting the bot
-        if await test_twitch_token():
-            logger.info("Token is valid, starting bot...")
-            await bot.start()
-        else:
-            logger.error("Skipping bot start due to invalid token.")
-    except Exception as e:
-        logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
-        # Retry connection after a delay
-        logger.info("Retrying Twitch bot connection in 10 seconds...")
-        await asyncio.sleep(10)
+    max_retries = 5
+    base_delay = 5
+    for attempt in range(max_retries):
+        await asyncio.sleep(5)  # Initial delay
+        logger.info(f"Attempting to start bot (attempt {attempt + 1}/{max_retries})...")
         try:
             if await test_twitch_token():
+                logger.info("Token is valid, starting bot...")
                 await bot.start()
+                logger.info("Bot started successfully")
+                return
             else:
-                logger.error("Retry skipped due to invalid token.")
+                logger.error("Invalid token, retrying...")
         except Exception as e:
-            logger.error(f"Retry failed: {str(e)}. Please check TWITCH_TOKEN and network connectivity.", exc_info=True)
+            logger.error(f"Failed to start Twitch bot: {str(e)}", exc_info=True)
+        if attempt < max_retries - 1:
+            delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+            logger.info(f"Retrying in {delay:.2f} seconds...")
+            await asyncio.sleep(delay)
+    logger.error("Max retries reached, bot failed to start. Please check TWITCH_TOKEN and network connectivity.")
 
 # Main entry point
 async def main():
