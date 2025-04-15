@@ -332,7 +332,7 @@ class GameState:
 
             if last_guess_time and time_since_last_guess < self.cooldown_seconds:
                 remaining_time = round(self.cooldown_seconds - time_since_last_guess)
-                await ctx.send(f"@{username} please wait {remaining_time} seconds before guessing again.")
+                await ctx.send(f"@{username} wait {remaining_time} seconds")
                 logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
                 return
 
@@ -344,7 +344,7 @@ class GameState:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
-                    await ctx.send(f"Nice job, @{username}! Piece placed at {coord}. You won {prize} Break Bucks!")
+                    await ctx.send(f"@{username} You won {prize} Break Bucks!")
                     await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
 
@@ -397,7 +397,7 @@ class GameState:
                         self.notify_event('win', {'winner': username, 'prize': prize})
                 else:
                     self.guesses[coord] = 'miss'
-                    await ctx.send(f"@{username} that's not the right spot for this piece. Try another coordinate!")
+                    await ctx.send(f"@{username} Wrong!")
             else:
                 await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
             self.notify_state_update()
@@ -591,11 +591,11 @@ async def main():
                     result = game_state.set_cooldown(new_cooldown)
                     await ctx.send(result)
                 else:
-                    await ctx.send("Please provide a cooldown duration (e.g., !cool 30)")
+                    await ctx.send(f"@{ctx.author.name} please provide a cooldown duration (e.g., !cool 30)")
         except Exception as e:
             logger.error(f"ERROR in cool_command: {str(e)}", exc_info=True)
             if ctx.author.name.lower() == 'nftopia':
-                await ctx.send("An error occurred while setting the cooldown. Please try again.")
+                await ctx.send(f"@{ctx.author.name} an error occurred while setting the cooldown. Please try again.")
 
     @bot.command(name='win')
     async def win_command(ctx):
@@ -611,11 +611,11 @@ async def main():
                     result = game_state.set_prize(prize_range)
                     await ctx.send(result)
                 else:
-                    await ctx.send("Please provide a prize range (e.g., !win 1-50)")
+                    await ctx.send(f"@{ctx.author.name} please provide a prize range (e.g., !win 1-50)")
         except Exception as e:
             logger.error(f"ERROR in win_command: {str(e)}", exc_info=True)
             if ctx.author.name.lower() == 'nftopia':
-                await ctx.send("An error occurred while setting the prize range. Please try again.")
+                await ctx.send(f"@{ctx.author.name} an error occurred while setting the prize range. Please try again.")
 
     @bot.command(name='testwin')
     async def test_win_command(ctx):
@@ -627,7 +627,7 @@ async def main():
             if ctx.author.name.lower() == 'nftopia':
                 logger.info(f"Triggering test win event for {ctx.author.name}")
                 game_state.notify_event('win', {'winner': ctx.author.name, 'prize': game_state.get_random_prize()})
-                await ctx.send(f"Triggered a test win event for {ctx.author.name}!")
+                await ctx.send(f"@{ctx.author.name} triggered a test win event!")
         except Exception as e:
             logger.error(f"ERROR in test_win_command: {str(e)}", exc_info=True)
             await ctx.send(f"@{ctx.author.name} an error occurred while triggering the test win event.")
