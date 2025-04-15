@@ -38,16 +38,21 @@ CSP_HEADER = (
 
 # Check for required environment variables
 required_env_vars = ['TWITCH_TOKEN', 'TWITCH_CLIENT_ID', 'GOOGLE_CREDENTIALS']
-missing_vars = [var for var in required_env_vars if var not in os.environ]
+missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
 if missing_vars:
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Google Sheets setup
-creds_json = os.environ.get('GOOGLE_CREDENTIALS')
-creds_dict = json.loads(creds_json)
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-client = gspread.authorize(creds)
+try:
+    creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+    creds_dict = json.loads(creds_json)
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+except Exception as e:
+    logger.error(f"Failed to initialize Google Sheets credentials: {str(e)}")
+    raise
 
 # Spreadsheet configuration
 SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
@@ -414,7 +419,7 @@ class GameState:
         try:
             event_data = {'type': 'state', 'state': self.get_state(), 'event': {}}
             self.event_queue.put_nowait(event_data)
-            logger.info(f"Sent state update event: {json.dumps(event_data)}")
+            logger.info(f"Sent state update event")
         except queue.Full:
             logger.warning("Event queue full, dropping state update")
 
@@ -422,7 +427,7 @@ class GameState:
         try:
             event = {'type': event_type, 'state': self.get_state(), 'event': event_data}
             self.event_queue.put_nowait(event)
-            logger.info(f"Sent event: {json.dumps(event)}")
+            logger.info(f"Sent event: {event_type}")
         except queue.Full:
             logger.warning(f"Event queue full, dropping event: {event_type}")
 
@@ -443,11 +448,11 @@ def sse():
         while True:
             try:
                 event = game_state.event_queue.get(timeout=30)
-                logger.info(f"Sending SSE event to client: {json.dumps(event)}")
+                logger.info(f"Sending SSE event to client")
                 yield f"data: {json.dumps(event)}\n\n"
             except queue.Empty:
                 event = {'type': 'ping', 'state': game_state.get_state(), 'event': {}}
-                logger.info(f"Sending SSE ping event: {json.dumps(event)}")
+                logger.info(f"Sending SSE ping event")
                 yield f"data: {json.dumps(event)}\n\n"
             except (BrokenPipeError, ConnectionError, OSError) as e:
                 logger.info(f"SSE client disconnected: {str(e)}")
@@ -459,7 +464,17 @@ def sse():
 
 @app.route('/health')
 def health_check():
-    return "OK", 200
+    try:
+        if not os.environ.get('TWITCH_TOKEN') or not os.environ.get('TWITCH_CLIENT_ID'):
+            logger.error("Missing Twitch credentials in health check")
+            return "Missing Twitch credentials", 500
+        if not os.environ.get('GOOGLE_CREDENTIALS'):
+            logger.error("Missing Google credentials in health check")
+            return "Missing Google credentials", 500
+        return "OK", 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return "Internal server error", 500
 
 # Test Twitch token validity
 async def test_twitch_token():
@@ -472,8 +487,7 @@ async def test_twitch_token():
     async with aiohttp.ClientSession() as session:
         async with session.get('https://id.twitch.tv/oauth2/validate', headers=headers) as response:
             if response.status == 200:
-                data = await response.json()
-                logger.info(f"Twitch token validation successful: {data}")
+                logger.info("Twitch token validation successful")
                 return True
             else:
                 logger.error(f"Twitch token validation failed: HTTP {response.status}")
@@ -526,10 +540,6 @@ async def main():
         logger.error(f"Twitch bot error: {str(error)}", exc_info=True)
         if data:
             logger.debug(f"Error data: {data}")
-
-    @bot.event()
-    async def event_raw_data(data):
-        logger.debug(f"Twitch raw data: {data}")
 
     @bot.command(name='g')
     async def guess_command(ctx):
