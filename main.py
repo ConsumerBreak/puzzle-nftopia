@@ -84,6 +84,28 @@ class RateLimiter:
 
 global_rate_limiter = RateLimiter(rate=10, per=5)
 
+# Message deduplication cache
+class MessageDeduplicator:
+    def __init__(self, window_seconds=5, max_size=1000):
+        self.seen_messages = deque(maxlen=max_size)
+        self.window_seconds = window_seconds
+
+    def has_seen(self, message_id):
+        current_time = time.time()
+        # Clean up old entries
+        while self.seen_messages and current_time - self.seen_messages[0][1] > self.window_seconds:
+            self.seen_messages.popleft()
+        # Check if message_id is in the cache
+        for msg_id, _ in self.seen_messages:
+            if msg_id == message_id:
+                return True
+        return False
+
+    def add(self, message_id):
+        self.seen_messages.append((message_id, time.time()))
+
+message_deduplicator = MessageDeduplicator(window_seconds=5, max_size=1000)
+
 # Exponential backoff for API calls
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
@@ -458,15 +480,13 @@ def sse():
 
         while True:
             try:
-                # Try to get an event from the queue with a timeout
                 try:
                     event = game_state.event_queue.get(timeout=PING_INTERVAL)
                     logger.info(f"Sending SSE event to client: {json.dumps(event)}")
                     yield f"data: {json.dumps(event)}\n\n"
-                    last_ping_time = time.time()  # Reset ping timer after sending an event
+                    last_ping_time = time.time()
                     continue
                 except queue.Empty:
-                    # If no event is available, check if it's time to send a ping
                     current_time = time.time()
                     if current_time - last_ping_time >= PING_INTERVAL:
                         event = {
@@ -478,7 +498,6 @@ def sse():
                         logger.info(f"Sending SSE ping event: {json.dumps(event)}")
                         yield f"data: {json.dumps(event)}\n\n"
                         last_ping_time = current_time
-                    # Sleep briefly to prevent tight looping
                     time.sleep(0.1)
                     continue
 
@@ -565,13 +584,31 @@ async def main():
 
     @bot.event()
     async def event_message(message):
-        if message.author is None or message.echo:
-            logger.debug(f"Skipping message: author={message.author}, echo={message.echo}")
+        # Skip system messages (where author is None)
+        if message.author is None:
+            logger.debug(f"Skipping system message: {message.content}")
             return
+
+        # Use message ID for deduplication
+        message_id = message.tags.get('id') if message.tags else None
+        if not message_id:
+            # If no message ID, create a unique identifier based on timestamp and content
+            message_id = f"{message.timestamp}_{message.content}_{message.author.name if message.author else 'None'}"
+        
+        # Check if we've already processed this message
+        if message_deduplicator.has_seen(message_id):
+            logger.debug(f"Skipping duplicate message: ID={message_id}, Content={message.content}")
+            return
+        
+        # Add message to deduplication cache
+        message_deduplicator.add(message_id)
+
+        # Skip messages from the bot itself
         if message.author.name.lower() == bot.nick.lower():
-            logger.debug(f"Skipping bot's own message: {message.content}")
+            logger.debug(f"Skipping bot's own message: ID={message_id}, Content={message.content}")
             return
-        logger.debug(f"Processing message from {message.author.name}: {message.content}")
+
+        logger.debug(f"Processing message: ID={message_id}, From={message.author.name}, Content={message.content}")
         await bot.handle_commands(message)
 
     @bot.command(name='g', aliases=['G'])
@@ -580,6 +617,12 @@ async def main():
             if not global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
+
+            message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
+            if message_deduplicator.has_seen(message_id):
+                logger.debug(f"Skipping duplicate guess command: ID={message_id}, Content={ctx.message.content}")
+                return
+            message_deduplicator.add(message_id)
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
@@ -596,6 +639,12 @@ async def main():
             if not global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
+
+            message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
+            if message_deduplicator.has_seen(message_id):
+                logger.debug(f"Skipping duplicate cool command: ID={message_id}, Content={ctx.message.content}")
+                return
+            message_deduplicator.add(message_id)
 
             if ctx.author.name.lower() == 'nftopia':
                 args = ctx.message.content.split(' ')
@@ -617,6 +666,12 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
+            message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
+            if message_deduplicator.has_seen(message_id):
+                logger.debug(f"Skipping duplicate win command: ID={message_id}, Content={ctx.message.content}")
+                return
+            message_deduplicator.add(message_id)
+
             if ctx.author.name.lower() == 'nftopia':
                 args = ctx.message.content.split(' ')
                 if len(args) > 1:
@@ -636,6 +691,12 @@ async def main():
             if not global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
+
+            message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
+            if message_deduplicator.has_seen(message_id):
+                logger.debug(f"Skipping duplicate testwin command: ID={message_id}, Content={ctx.message.content}")
+                return
+            message_deduplicator.add(message_id)
 
             if ctx.author.name.lower() == 'nftopia':
                 logger.info(f"Triggering test win event for {ctx.author.name}")
