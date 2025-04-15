@@ -208,7 +208,7 @@
         function createConfetti() {
             const particles = [];
             const gridCanvas = document.getElementById('grid');
-            const gridRect = gridCanvas.getBoundingClientRect();
+            const gridRect = gridCanvas.getBoundingClient Rectangular();
             const centerX = gridRect.left + 175;
             const centerY = gridRect.top + 175;
 
@@ -333,7 +333,7 @@ coord_to_index = {coord: i for i, coord in enumerate(grid_coords)}
 # Global variables for image loading and rendering state
 puzzle_img = None
 puzzle_img_url = ''
-last_drawn_state = {'pieces': {}, 'guesses': {}}
+last_drawn_state = {'pieces': {}, 'guesses': {}, 'pieceId': -1}
 is_initial_render = True
 
 # Preload audio from Glitch CDN
@@ -404,7 +404,7 @@ async def update_image(url):
         draw_side_piece()
 
 def draw_grid():
-    global is_initial_render
+    global is_initial_render, last_drawn_state
     try:
         grid_ctx.clearRect(0, 0, 350, 350)
         cell_size = 70
@@ -456,6 +456,7 @@ def draw_grid():
                 grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
         last_drawn_state['pieces'] = dict(state['pieces'])
         last_drawn_state['guesses'] = dict(state['guesses'])
+        last_drawn_state['pieceId'] = state['pieceId']
         is_initial_render = False
     except Exception as e:
         console.log(f"Error in draw_grid: {str(e)}")
@@ -572,6 +573,7 @@ async def update_state(event_data):
     global is_initial_render, cooldown_duration, timer_value, last_timer_update
     console.log(f"Processing SSE event: {json.dumps(event_data)}")
     try:
+        start_time = time.time()
         event_type = event_data.get('type', 'unknown')
         if event_type == 'win' or event_type == 'complete':
             winner = event_data['event'].get('winner', 'Unknown')
@@ -582,6 +584,7 @@ async def update_state(event_data):
         old_piece_id = state['pieceId']
         old_game_id = state['gameId']
         old_cooldown = state['cooldownSeconds']
+        old_guesses = dict(state['guesses'])
         if 'state' in event_data:
             new_state = event_data['state']
             deep_merge(state, new_state)
@@ -603,9 +606,12 @@ async def update_state(event_data):
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
-        draw_grid()
+        # Optimize redraws
+        if is_initial_render or state['pieceId'] != last_drawn_state['pieceId'] or state['guesses'] != old_guesses:
+            draw_grid()
         draw_side_piece()
         update_leaderboard()
+        console.log(f"State update took {time.time() - start_time:.3f}s")
     except Exception as e:
         console.log(f"Error in update_state: {str(e)}")
 
