@@ -2,6 +2,7 @@ import os
 import random
 import json
 import aiohttp
+import hashlib
 from flask import Flask, Response, send_file, stream_with_context
 from twitchio.ext import commands
 import queue
@@ -435,19 +436,21 @@ class GameState:
 
     def notify_state_update(self):
         try:
+            start_time = time.time()
             state = self.get_state()
             event_data = {'type': 'state', 'state': state, 'event': {}}
             self.event_queue.put_nowait(event_data)
-            logger.info(f"Sent state update event with guesses: {state['guesses']}, pieces: {state['pieces']}")
+            logger.info(f"Sent state update event with guesses: {state['guesses']}, pieces: {state['pieces']} in {time.time() - start_time:.3f}s")
         except queue.Full:
             logger.warning("Event queue full, dropping state update")
 
     def notify_event(self, event_type, event_data):
         try:
+            start_time = time.time()
             state = self.get_state()
             event = {'type': event_type, 'state': state, 'event': event_data}
             self.event_queue.put_nowait(event)
-            logger.info(f"Sent {event_type} event: {event_data}")
+            logger.info(f"Sent {event_type} event: {event_data} in {time.time() - start_time:.3f}s")
         except queue.Full:
             logger.warning(f"Event queue full, dropping event: {event_type}")
 
@@ -562,7 +565,9 @@ async def main():
             return
         now = time.time()
         message_id = getattr(message, 'id', f"no-id-{now}")
-        message_key = f"{message.author.name}-{message.content}-{message_id}"
+        # Hash content for stricter deduplication
+        content_hash = hashlib.sha256(message.content.encode()).hexdigest()[:16]
+        message_key = f"{message.author.name}-{content_hash}-{message_id}"
         
         # Stricter deduplication
         if message_id in processed_messages:
