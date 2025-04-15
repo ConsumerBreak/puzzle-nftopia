@@ -91,6 +91,7 @@
             height: 100%;
             pointer-events: none;
             z-index: 999;
+            display: block;
         }
         p {
             font-size: 28px;
@@ -324,7 +325,7 @@ state = {
     'reverseBaseMapping': {},
     'gameId': 0,
     'pieceId': 0,
-    'cooldownSeconds': 60,  # Default matches server
+    'cooldownSeconds': 60,
     'minPrize': 1,
     'maxPrize': 50
 }
@@ -520,6 +521,7 @@ def play_win_sound(is_complete):
     try:
         audio = win_audio2 if is_complete else win_audio
         audio.currentTime = 0
+        console.log(f"Playing win sound, is_complete={is_complete}")
         promise = audio.play()
         promise.catch(lambda e: console.log(f"Error playing sound: {str(e)}"))
     except Exception as e:
@@ -528,9 +530,10 @@ def play_win_sound(is_complete):
 def hide_win_text():
     win_text = document.getElementById('win-announcement')
     win_text.style.display = 'none'
+    console.log("Hid win announcement text")
 
 def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
-    console.log(f"Triggering win animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
+    console.log(f"Entered trigger_win_animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
     try:
         grid_canvas = document.getElementById('grid')
         grid_rect = grid_canvas.getBoundingClientRect()
@@ -543,6 +546,7 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
 
         win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
         win_text.classList.toggle('complete', is_complete)
+        console.log(f"Showing win text: {win_text.textContent}")
         setTimeout(create_proxy(hide_win_text), is_complete and 8000 or 5000)
         win_text.style.display = 'block'
         play_win_sound(is_complete)
@@ -574,7 +578,7 @@ def update_cooldown_timer(timestamp=None):
 
 async def update_state(event_data):
     global is_initial_render, cooldown_duration, timer_value, last_timer_update
-    console.log(f"Processing SSE event: {json.dumps(event_data)}")
+    console.log(f"Processing SSE event at {time.time()}: {json.dumps(event_data)}")
     try:
         start_time = time.time()
         event_type = event_data.get('type', 'unknown')
@@ -592,7 +596,7 @@ async def update_state(event_data):
             new_state = event_data['state']
             deep_merge(state, new_state)
 
-        if state['gameId'] != old_game_id or state['pieceId'] != old_piece_id:
+        if state['gameId'] != old_game_id or state['pieceId'] != old-press_id:
             console.log(f"State change detected: gameId={state['gameId']}, pieceId={state['pieceId']}, forcing full redraw")
             is_initial_render = True
 
@@ -609,9 +613,9 @@ async def update_state(event_data):
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
-        # Force redraw on pieceId change or guesses update
-        if is_initial_render or state['pieceId'] != last_drawn_state['pieceId'] or state['guesses'] != last_drawn_state['guesses']:
-            console.log("Redrawing grid due to state change")
+        # Always redraw on win or state change
+        if event_type == 'win' or is_initial_render or state['pieceId'] != last_drawn_state['pieceId'] or state['guesses'] != last_drawn_state['guesses']:
+            console.log("Redrawing grid due to win or state change")
             draw_grid()
         draw_side_piece()
         update_leaderboard()
