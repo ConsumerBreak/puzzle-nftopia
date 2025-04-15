@@ -2,760 +2,297 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Puzzle Break</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="https://pyscript.net/releases/2024.10.1/core.js" type="module"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFTopia Puzzle Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.2/lib/p5.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.2/lib/addons/p5.sound.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <style>
         body {
-            background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
-            color: #fff;
-            font-family: 'Bebas Neue', sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            display: flex;
-            gap: 20px;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 15px;
-            border: 2px solid #00ff00;
-            position: relative;
+            background-color: #f5f5f5;
+            font-family: 'Arial', sans-serif;
         }
         canvas {
-            border: 3px solid #00ff00;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin: 0 auto;
+            display: block;
         }
-        #side-piece {
-            border: 3px solid #ffd700;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        #leaderboard {
-            background: rgba(0, 255, 0, 0.1);
-            padding: 15px;
-            border-radius: 10px;
-            border: 2px dashed #00ff00;
-            min-width: 200px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        #leaderboard h2 {
-            margin: 0 0 10px;
-            font-size: 34px;
-            color: #00ff00;
-        }
-        #leaderboard ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        #leaderboard li {
-            font-size: 24px;
-            margin: 5px 0;
-        }
-        #win-announcement {
-            position: fixed;
-            transform: translate(-50%, -50%) scale(0);
-            font-size: 30px;
-            color: #ffffff;
-            text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff, 0 0 15px #00ffff, 0 0 20px #00ffff;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 10px 15px;
-            border-radius: 10px;
-            border: 4px solid #ffd700;
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.9), inset 0 0 15px rgba(255, 215, 0, 0.7);
-            z-index: 1000;
-            display: none;
-            pointer-events: none;
-            letter-spacing: 1px;
-            max-width: 280px;
-            text-align: center;
-            white-space: normal;
-        }
-        #win-announcement:not(.complete) {
-            animation: winPop 0.8s ease-out forwards, winGlow 1.2s infinite alternate, fadeOut 2s 3s ease-out forwards;
-        }
-        #win-announcement.complete {
-            animation: winPop 0.8s ease-out forwards, winGlow 1.2s infinite alternate, fadeOut 2s 6s ease-out forwards;
-        }
-        #confetti-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 999;
-        }
-        p {
-            font-size: 28px;
-            margin: 10px 0;
-            text-align: center;
-            color: #00ff00;
-            text-shadow: 0 0 5px #00ff00;
-        }
-        #side-piece-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #timer-container {
+        .leaderboard {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-top: 20px;
+        }
+        .leaderboard h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .leaderboard table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .leaderboard th, .leaderboard td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .leaderboard th {
+            background-color: #f0f0f0;
+        }
+        .columns {
+            margin-top: 20px;
+        }
+        .column {
+            padding: 10px;
+        }
+        .side-image-container, .main-image-container {
+            position: relative;
             text-align: center;
         }
-        #timer-description {
-            font-size: 24px;
-            color: #ffd700;
-            text-shadow: 0 0 5px #ffd700;
-            margin-bottom: 10px;
-            max-width: 200px;
-            line-height: 1.2;
+        .side-image, .main-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
         }
-        #cooldown-timer {
-            font-size: 48px;
-            color: #ffd700;
-            text-shadow: 0 0 5px #ffd700;
-        }
-        #start-button, #test-win-button {
-            padding: 10px 20px;
-            font-size: 20px;
-            font-family: 'Bebas Neue', sans-serif;
-            color: #fff;
-            background: #00ff00;
-            border: 2px solid #ffd700;
-            border-radius: 5px;
-            cursor: pointer;
-            text-shadow: 0 0 5px #000;
-            margin: 10px;
-        }
-        #start-button {
+        #winMessage {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 1001;
-        }
-        #test-win-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1001;
-        }
-        #start-button:hover, #test-win-button:hover {
-            background: #ffd700;
-            color: #000;
-        }
-        @keyframes winPop {
-            0% { transform: translate(-50%, -50%) scale(0) rotate(-15deg); opacity: 0; }
-            70% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-        }
-        @keyframes winGlow {
-            0% { 
-                text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff, 0 0 15px #00ffff, 0 0 20px #00ffff;
-                box-shadow: 0 0 30px rgba(0, 255, 255, 0.9), inset 0 0 15px rgba(255, 215, 0, 0.7);
-                border-color: #ffd700;
-            }
-            100% { 
-                text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 25px #00ffff, 0 0 35px #00ffff;
-                box-shadow: 0 0 50px rgba(0, 255, 255, 1), inset 0 0 20px rgba(255, 215, 0, 1);
-                border-color: #ff00ff;
-            }
-        }
-        @keyframes fadeOut {
-            0% { opacity: 1; }
-            100% { opacity: 0; }
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 1000;
+            display: none;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <button id="start-button">Click to Start Game</button>
-    <button id="test-win-button" style="display: none;">Test Win Animation</button>
-    <div class="container" style="display: none;">
-        <div>
-            <canvas id="grid" width="350" height="350"></canvas>
-            <p>Use !g (coordinate)</p>
-            <div id="side-piece-container">
-                <canvas id="side-piece" width="210" height="210"></canvas>
+    <div class="container">
+        <h1 class="title has-text-centered">NFTopia Puzzle Game</h1>
+
+        <div class="columns">
+            <div class="column is-one-fifth side-image-container">
+                <h2 class="subtitle has-text-centered">Side Piece</h2>
+                <img id="sideImage" class="side-image" src="" alt="Side Piece">
+            </div>
+            <div class="column main-image-container">
+                <h2 class="subtitle has-text-centered">Main Puzzle</h2>
+                <div id="p5-sketch"></div>
             </div>
         </div>
-        <div>
-            <div id="leaderboard">
-                <h2>Leaderboard</h2>
-                <ul id="leaderboard-list"></ul>
-            </div>
-            <div id="timer-container">
-                <div id="timer-description">
-                    see what second you're on when you guess, and then you can guess again when the timer comes back to that second.
-                </div>
-                <div id="cooldown-timer">5</div>
-            </div>
+
+        <div class="leaderboard">
+            <h2 class="subtitle">Leaderboard</h2>
+            <table id="leaderboardTable">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Wins</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+        </div>
+
+        <div class="has-text-centered" style="margin-top: 20px;">
+            <button class="button is-primary" onclick="triggerTestWinAnimation()">Test Win Animation</button>
         </div>
     </div>
-    <div id="win-announcement"></div>
-    <canvas id="confetti-canvas"></canvas>
+
+    <div id="winMessage"></div>
+
     <script>
-        const confettiCanvas = document.getElementById('confetti-canvas');
-        const confettiCtx = confettiCanvas.getContext('2d');
-        confettiCanvas.width = window.innerWidth;
-        confettiCanvas.height = window.innerHeight;
+        let gameState = null;
+        let imagesLoaded = false;
+        let sideImage, mainImage;
+        let cellSize = 100;
+        let grid = Array(5).fill().map(() => Array(5).fill(null));
+        let confettiParticles = [];
 
-        function createConfetti() {
-            const particles = [];
-            const gridCanvas = document.getElementById('grid');
-            const gridRect = gridCanvas.getBoundingClientRect();
-            const centerX = gridRect.left + 175;
-            const centerY = gridRect.top + 175;
+        function preload() {
+            fetchGameState().then(state => {
+                gameState = state;
+                loadImages();
+            });
+        }
 
-            console.log(`Confetti center: (${centerX}, ${centerY})`);
+        function loadImages() {
+            if (gameState && gameState.current_image) {
+                const baseUrl = "https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/";
+                sideImage = loadImage(`${baseUrl}${gameState.current_image}`);
+                mainImage = loadImage(`${baseUrl}${gameState.current_image}`);
+                imagesLoaded = true;
+                updateSideImage();
+            }
+        }
 
-            for (let i = 0; i < 150; i++) {
-                const shapeType = Math.random();
-                let shape;
-                if (shapeType < 0.4) shape = 'circle';
-                else if (shapeType < 0.7) shape = 'square';
-                else shape = 'star';
+        function updateSideImage() {
+            const sideImageElement = document.getElementById('sideImage');
+            if (gameState && gameState.current_image) {
+                sideImageElement.src = `https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/${gameState.current_image}?section=${gameState.natural_section}`;
+            }
+        }
 
-                particles.push({
-                    x: centerX,
-                    y: centerY,
-                    vx: (Math.random() - 0.5) * 12,
-                    vy: (Math.random() - 0.5) * 12,
-                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-                    size: Math.random() * 5 + 3,
-                    shape: shape,
-                    opacity: 1,
-                    rotation: Math.random() * 360,
-                    rotationSpeed: (Math.random() - 0.5) * 10
+        function setup() {
+            let canvas = createCanvas(500, 500);
+            canvas.parent('p5-sketch');
+            textAlign(CENTER, CENTER);
+            textSize(20);
+            if (!imagesLoaded) {
+                fetchGameState().then(state => {
+                    gameState = state;
+                    loadImages();
                 });
             }
-            return particles;
+            startEventSource();
         }
 
-        function drawStar(ctx, x, y, size, rotation) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(rotation * Math.PI / 180);
-            ctx.beginPath();
-            for (let i = 0; i < 5; i++) {
-                ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * size, Math.sin((18 + i * 72) * Math.PI / 180) * size);
-                ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * (size / 2), Math.sin((54 + i * 72) * Math.PI / 180) * (size / 2));
+        function draw() {
+            background(220);
+
+            if (!imagesLoaded) {
+                text("Loading images...", width / 2, height / 2);
+                return;
             }
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
 
-        function animateConfetti(particles) {
-            confettiCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-            particles.forEach(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.2;
-                p.vx *= 0.98;
-                p.vy *= 0.98;
-                p.opacity -= 0.005;
-                p.rotation += p.rotationSpeed;
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 5; col++) {
+                    let x = col * cellSize;
+                    let y = row * cellSize;
+                    let idx = row * 5 + col;
 
-                if (p.y > window.innerHeight || p.x < 0 || p.x > window.innerWidth || p.opacity <= 0) return;
+                    stroke(0);
+                    fill(255);
+                    rect(x, y, cellSize, cellSize);
 
-                confettiCtx.globalAlpha = p.opacity;
-                confettiCtx.fillStyle = p.color;
-
-                if (p.shape === 'circle') {
-                    confettiCtx.beginPath();
-                    confettiCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    confettiCtx.fill();
-                } else if (p.shape === 'square') {
-                    confettiCtx.save();
-                    confettiCtx.translate(p.x, p.y);
-                    confettiCtx.rotate(p.rotation * Math.PI / 180);
-                    confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
-                    confettiCtx.restore();
-                } else if (p.shape === 'star') {
-                    drawStar(confettiCtx, p.x, p.y, p.size, p.rotation);
-                }
-            });
-
-            const remainingParticles = particles.filter(p => p.y <= window.innerHeight && p.x >= 0 && p.x <= window.innerWidth && p.opacity > 0);
-            if (remainingParticles.length > 0) {
-                requestAnimationFrame(() => animateConfetti(remainingParticles));
-            }
-        }
-
-        window.triggerConfetti = function() {
-            const particles = createConfetti();
-            animateConfetti(particles);
-        };
-    </script>
-    <script type="py" config='{"packages": ["requests"]}'>
-import json
-import asyncio
-from js import EventSource, fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame
-from pyodide.http import pyfetch
-from pyodide.ffi import create_proxy
-import time
-
-# Canvas setup
-grid_canvas = document.getElementById('grid')
-grid_ctx = grid_canvas.getContext('2d')
-side_canvas = document.getElementById('side-piece')
-side_ctx = side_canvas.getContext('2d')
-
-# Game state
-state = {
-    'pieces': {},
-    'current_piece': None,
-    'natural_section': None,
-    'current_image': '',
-    'guesses': {},
-    'leaderboard': [],
-    'sectionMapping': {},
-    'reverse_section_mapping': {},
-    'baseMapping': {},
-    'reverseBaseMapping': {},
-    'gameId': 0,
-    'pieceId': 0,
-    'cooldownSeconds': 5,
-    'minPrize': 50,
-    'maxPrize': 50
-}
-
-# Grid coordinates (A1-E5 mapping)
-grid_coords = [f"{letter}{number}" for letter in "ABCDE" for number in range(1, 6)]
-coord_to_index = {coord: i for i, coord in enumerate(grid_coords)}
-
-# Global variables for image loading and rendering state
-puzzle_img = None
-puzzle_img_url = ''
-last_drawn_state = {'pieces': {}, 'guesses': {}}
-is_initial_render = True
-
-# Preload audio from Glitch CDN
-win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3')
-win_audio.preload = 'auto'
-win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
-win_audio2.preload = 'auto'
-
-# Cooldown timer state
-cooldown_duration = 5  # Default, will be updated from state
-last_timer_update = time.time()
-timer_value = cooldown_duration
-
-# Debouncing state to prevent duplicate updates
-last_processed_timestamp = 0
-
-# JavaScript function to load image and call Python callback
-def load_image_js(url, callback):
-    img = Image.new()
-    img.src = url
-    img.onload = create_proxy(lambda _: callback(img))
-    img.onerror = create_proxy(lambda _: callback(None))
-
-# Python function to load image using JavaScript
-async def load_image(url):
-    global puzzle_img
-    try:
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
-
-        def callback(img):
-            if img is None:
-                console.log(f"Failed to load image from URL: {url}")
-                future.set_exception(Exception(f"Failed to load image: {url}"))
-            else:
-                console.log(f"Successfully loaded image from URL: {url}")
-                future.set_result(img)
-
-        load_image_js(url, create_proxy(callback))
-        result = await future
-        return result
-    except Exception as e:
-        console.log(f"Exception in load_image: {str(e)}")
-        placeholder = document.createElement('canvas')
-        placeholder.width = 2000
-        placeholder.height = 2000
-        ctx = placeholder.getContext('2d')
-        ctx.fillStyle = 'gray'
-        ctx.fillRect(0, 0, 2000, 2000)
-        ctx.fillStyle = 'white'
-        ctx.font = '100px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText('Image Failed', 1000, 1000)
-        return placeholder
-
-# Function to update the image and redraw
-async def update_image(url):
-    global puzzle_img, puzzle_img_url
-    if url != puzzle_img_url:
-        puzzle_img_url = url
-        puzzle_img = await load_image(url)
-        draw_grid()
-        draw_side_piece()
-
-def draw_grid():
-    global is_initial_render
-    current_piece_count = len(state['pieces'])
-    last_piece_count = len(last_drawn_state['pieces'])
-    if not is_initial_render and current_piece_count < last_piece_count:
-        console.log(f"Piece count mismatch: current={current_piece_count}, last={last_piece_count}, forcing full redraw")
-        is_initial_render = True
-
-    if is_initial_render:
-        grid_ctx.clearRect(0, 0, 350, 350)
-        cell_size = 70
-        for i in range(25):
-            x = (i % 5) * cell_size
-            y = (i // 5) * cell_size
-            grid_ctx.strokeStyle = '#00ff00'
-            grid_ctx.lineWidth = 3
-            grid_ctx.strokeRect(x, y, cell_size, cell_size)
-
-            coord = grid_coords[i]
-            if coord in state['pieces']:
-                section = state['pieces'][coord]
-                col = section % 5
-                row = section // 5
-                if puzzle_img:
-                    try:
-                        grid_ctx.drawImage(
-                            puzzle_img,
-                            col * 400, row * 400, 400, 400,
-                            x, y, cell_size, cell_size
-                        )
-                    except Exception:
-                        grid_ctx.fillStyle = 'green'
-                        grid_ctx.fillRect(x, y, cell_size, cell_size)
-                        grid_ctx.fillStyle = 'white'
-                        grid_ctx.font = '30px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                else:
-                    grid_ctx.fillStyle = 'green'
-                    grid_ctx.fillRect(x, y, cell_size, cell_size)
-                    grid_ctx.fillStyle = 'white'
-                    grid_ctx.font = '30px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-            elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                grid_ctx.fillRect(x, y, cell_size, cell_size)
-                grid_ctx.fillStyle = 'red'
-                grid_ctx.font = '40px Bebas Neue'
-                grid_ctx.textAlign = 'center'
-                grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
-            else:
-                grid_ctx.fillStyle = '#ccffcc'
-                grid_ctx.font = '30px Bebas Neue'
-                grid_ctx.textAlign = 'center'
-                grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-        is_initial_render = False
-        last_drawn_state['pieces'] = dict(state['pieces'])
-        last_drawn_state['guesses'] = dict(state['guesses'])
-    else:
-        cell_size = 70
-        for i in range(25):
-            coord = grid_coords[i]
-            current_piece = state['pieces'].get(coord)
-            current_guess = state['guesses'].get(coord)
-            last_piece = last_drawn_state['pieces'].get(coord)
-            last_guess = last_drawn_state['guesses'].get(coord)
-
-            if current_piece != last_piece or current_guess != last_guess or (last_piece is not None and current_piece is None):
-                x = (i % 5) * cell_size
-                y = (i // 5) * cell_size
-                grid_ctx.clearRect(x, y, cell_size, cell_size)
-                grid_ctx.strokeStyle = '#00ff00'
-                grid_ctx.lineWidth = 3
-                grid_ctx.strokeRect(x, y, cell_size, cell_size)
-
-                if coord in state['pieces']:
-                    section = state['pieces'][coord]
-                    col = section % 5
-                    row = section // 5
-                    if puzzle_img:
-                        try:
-                            grid_ctx.drawImage(
-                                puzzle_img,
-                                col * 400, row * 400, 400, 400,
-                                x, y, cell_size, cell_size
-                            )
-                        except Exception:
-                            grid_ctx.fillStyle = 'green'
-                            grid_ctx.fillRect(x, y, cell_size, cell_size)
-                            grid_ctx.fillStyle = 'white'
-                            grid_ctx.font = '30px Bebas Neue'
-                            grid_ctx.textAlign = 'center'
-                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                    else:
-                        grid_ctx.fillStyle = 'green'
-                        grid_ctx.fillRect(x, y, cell_size, cell_size)
-                        grid_ctx.fillStyle = 'white'
-                        grid_ctx.font = '30px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                    grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                    grid_ctx.fillRect(x, y, cell_size, cell_size)
-                    grid_ctx.fillStyle = 'red'
-                    grid_ctx.font = '40px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
-                else:
-                    grid_ctx.fillStyle = '#ccffcc'
-                    grid_ctx.font = '30px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-
-        last_drawn_state['pieces'] = dict(state['pieces'])
-        last_drawn_state['guesses'] = dict(state['guesses'])
-
-def draw_side_piece():
-    side_ctx.clearRect(0, 0, 210, 210)
-    if state['natural_section'] is not None:
-        section = state['natural_section']
-        col = section % 5
-        row = section // 5
-        if puzzle_img:
-            try:
-                side_ctx.drawImage(
-                    puzzle_img,
-                    col * 400, row * 400, 400, 400,
-                    0, 0, 210, 210
-                )
-            except Exception:
-                side_ctx.fillStyle = 'yellow'
-                side_ctx.fillRect(0, 0, 210, 210)
-                side_ctx.fillStyle = 'black'
-                side_ctx.font = '30px Bebas Neue'
-                side_ctx.textAlign = 'center'
-                side_ctx.fillText(f"Piece {section}", 105, 105)
-        else:
-            side_ctx.fillStyle = 'yellow'
-            side_ctx.fillRect(0, 0, 210, 210)
-            side_ctx.fillStyle = 'black'
-            side_ctx.font = '30px Bebas Neue'
-            side_ctx.textAlign = 'center'
-            side_ctx.fillText(f"Piece {section}", 105, 105)
-        side_ctx.strokeStyle = '#ffd700'
-        side_ctx.lineWidth = 3
-        side_ctx.strokeRect(0, 0, 210, 210)
-
-def update_leaderboard():
-    try:
-        console.log(f"Updating leaderboard with data: {state['leaderboard']}")
-        ul = document.getElementById('leaderboard-list')
-        ul.innerHTML = ''
-        if not state['leaderboard']:
-            li = document.createElement('li')
-            li.textContent = 'No leaderboard data yet'
-            ul.appendChild(li)
-        else:
-            for username, wins in state['leaderboard']:
-                li = document.createElement('li')
-                li.textContent = f'{username}: {wins} wins'
-                ul.appendChild(li)
-    except Exception as e:
-        console.log(f"Error in update_leaderboard: {str(e)}")
-
-def play_win_sound(is_complete):
-    try:
-        audio = win_audio2 if is_complete else win_audio
-        audio.currentTime = 0
-        promise = audio.play()
-        promise.catch(lambda e: console.log(f"Error playing sound: {str(e)}"))
-    except Exception as e:
-        console.log(f"Exception in play_win_sound: {str(e)}")
-
-def hide_win_text():
-    win_text = document.getElementById('win-announcement')
-    win_text.style.display = 'none'
-
-def trigger_confetti():
-    window.triggerConfetti()
-
-def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
-    console.log(f"Triggering win animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
-    try:
-        grid_canvas = document.getElementById('grid')
-        grid_rect = grid_canvas.getBoundingClientRect()
-        center_x = grid_rect.left + 175
-        center_y = grid_rect.top + 175
-
-        win_text = document.getElementById('win-announcement')
-        win_text.style.left = f"{center_x}px"
-        win_text.style.top = f"{center_y}px"
-
-        if is_complete:
-            win_text.textContent = f"Puzzle completed! Everyone wins {prize} NFTOKEN!"
-            win_text.classList.add('complete')
-            setTimeout(create_proxy(hide_win_text), 8000)
-        else:
-            win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
-            win_text.classList.remove('complete')
-            setTimeout(create_proxy(hide_win_text), 5000)
-        win_text.style.display = 'block'
-        play_win_sound(is_complete)
-        trigger_confetti()
-    except Exception as e:
-        console.log(f"Error in trigger_win_animation: {str(e)}")
-
-def test_win_animation(event=None):
-    console.log("Testing win animation...")
-    trigger_win_animation(state['pieceId'], "TestUser", 50, False)
-
-def update_cooldown_timer(timestamp=None):
-    global last_timer_update, timer_value, cooldown_duration
-    try:
-        now = time.time()
-        elapsed = now - last_timer_update
-        timer_value -= elapsed
-        if timer_value <= 0:
-            timer_value = cooldown_duration
-
-        last_timer_update = now
-
-        timer_element = document.getElementById('cooldown-timer')
-        timer_element.textContent = f"{round(timer_value)}"
-
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Error in update_cooldown_timer: {str(e)}")
-
-async def update_state(event_data):
-    global is_initial_render, cooldown_duration, timer_value, last_timer_update, last_processed_timestamp
-    # Debounce: Skip if this event has already been processed
-    timestamp = event_data.get('timestamp', 0)
-    if timestamp <= last_processed_timestamp:
-        console.log(f"Skipping duplicate event with timestamp: {timestamp}")
-        return
-    last_processed_timestamp = timestamp
-
-    console.log(f"Updating state: {json.dumps(event_data)}")
-    try:
-        old_piece_id = state['pieceId']
-        old_game_id = state['gameId']
-        old_cooldown = state['cooldownSeconds']
-        if 'state' in event_data:
-            new_state = event_data['state']
-            if 'pieces' in new_state:
-                state['pieces'] = new_state['pieces']
-            if 'guesses' in new_state:
-                state['guesses'] = new_state['guesses']
-            if 'leaderboard' in new_state:
-                state['leaderboard'] = new_state['leaderboard']
-            for key, value in new_state.items():
-                if key not in ['pieces', 'guesses', 'leaderboard']:
-                    state[key] = value
-
-        if state['gameId'] != old_game_id:
-            console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
-            is_initial_render = True
-
-        if state['cooldownSeconds'] != old_cooldown:
-            console.log(f"Cooldown changed: old={cooldown_duration}, new={state['cooldownSeconds']}")
-            cooldown_duration = state['cooldownSeconds']
-            timer_value = cooldown_duration
-            last_timer_update = time.time()
-            timer_element = document.getElementById('cooldown-timer')
-            timer_element.textContent = f"{round(timer_value)}"
-
-        new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
-        if state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
-            console.log(f"Updating image to: {new_image_url}")
-            await update_image(new_image_url)
-
-        # Draw immediately to minimize lag
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-
-        event_type = event_data.get('type', 'unknown')
-        console.log(f"Event type: {event_type}")
-        if event_type == 'win':
-            winner = event_data['event'].get('winner', 'Unknown')
-            prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], winner, prize, False)
-        elif event_type == 'complete':
-            prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], 'Everyone', prize, True)
-    except Exception as e:
-        console.log(f"Error in update_state: {str(e)}")
-
-# Initial state fetch
-async def init():
-    global is_initial_render
-    try:
-        console.log("Fetching initial game state...")
-        resp = await pyfetch('/game_state')
-        data = await resp.json()
-        console.log(f"Initial game state: {json.dumps(data)}")
-        event_data = {
-            "type": "init",
-            "state": data,
-            "event": {},
-            "timestamp": time.time()
-        }
-        await update_state(event_data)
-        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-        console.log("Starting cooldown timer...")
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Init error: {str(e)}")
-        draw_grid()
-        draw_side_piece()
-
-# SSE function to listen for game state updates with reconnection
-async def listen_sse():
-    while True:
-        try:
-            console.log("Connecting to SSE stream...")
-            es = EventSource.new('/events')
-            def on_message(event):
-                try:
-                    data = json.loads(event.data)
-                    console.log(f"SSE event received: {json.dumps(data)}")
-                    event_data = {
-                        "type": data.get('type', 'unknown'),
-                        "state": data.get('state', {}),
-                        "event": data.get('event', {}),
-                        "timestamp": data.get('timestamp', time.time())
+                    if (gameState && gameState.pieces) {
+                        let coord = String.fromCharCode(65 + row) + (col + 1);
+                        if (gameState.pieces[coord]) {
+                            let section = gameState.pieces[coord];
+                            let imgX = (section % 5) * cellSize;
+                            let imgY = Math.floor(section / 5) * cellSize;
+                            image(mainImage, x, y, cellSize, cellSize, imgX, imgY, cellSize, cellSize);
+                        }
                     }
-                    asyncio.ensure_future(update_state(event_data))
-                except Exception as e:
-                    console.log(f"Error processing SSE event: {str(e)}")
 
-            es.onmessage = create_proxy(on_message)
-            es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
+                    if (gameState && gameState.guesses && gameState.guesses[String.fromCharCode(65 + row) + (col + 1)] === 'miss') {
+                        fill(255, 0, 0, 100);
+                        rect(x, y, cellSize, cellSize);
+                    }
 
-            while True:
-                await asyncio.sleep(5)  # Reduced sleep time for faster reconnection
-                if es.readyState == 2:
-                    console.log("SSE connection closed, reconnecting...")
-                    break
-        except Exception as e:
-            console.log(f"SSE error: {str(e)}, reconnecting...")
-        await asyncio.sleep(2)  # Reduced reconnection delay
+                    fill(0);
+                    noStroke();
+                    text(String.fromCharCode(65 + row) + (col + 1), x + cellSize / 2, y + cellSize / 2);
+                }
+            }
 
-# Start the game after user interaction
-def start_game(event=None):
-    console.log("Starting game...")
-    document.getElementById('start-button').style.display = 'none'
-    document.getElementById('test-win-button').style.display = 'block'
-    document.querySelector('.container').style.display = 'flex'
-    asyncio.ensure_future(init())
-    asyncio.ensure_future(listen_sse())
+            // Draw confetti for win animation
+            for (let i = confettiParticles.length - 1; i >= 0; i--) {
+                let p = confettiParticles[i];
+                p.y += p.speed;
+                fill(p.color);
+                noStroke();
+                rect(p.x, p.y, 5, 5);
+                if (p.y > height) {
+                    confettiParticles.splice(i, 1);
+                }
+            }
+        }
 
-document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
-document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
+        async function fetchGameState() {
+            try {
+                const response = await fetch('/game_state');
+                const state = await response.json();
+                gameState = state;
+                updateLeaderboard();
+                return state;
+            } catch (error) {
+                console.error('Error fetching game state:', error);
+                return null;
+            }
+        }
+
+        function updateLeaderboard() {
+            const leaderboardBody = document.getElementById('leaderboardBody');
+            leaderboardBody.innerHTML = '';
+            if (gameState && gameState.leaderboard) {
+                gameState.leaderboard.forEach(([username, wins]) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${username}</td><td>${wins}</td>`;
+                    leaderboardBody.appendChild(row);
+                });
+            }
+        }
+
+        function startEventSource() {
+            const eventSource = new EventSource('/events');
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                gameState = data.state;
+                updateLeaderboard();
+                updateSideImage();
+
+                // Handle win event for individual piece solves
+                if (data.event && data.event.type === 'win') {
+                    const winner = data.event.winner;
+                    const prize = data.event.prize;
+                    triggerWinAnimation(winner, prize);
+                }
+
+                // Handle complete event for puzzle completion
+                if (data.event && data.event.type === 'complete') {
+                    const winner = data.event.winner; // Should be "Everyone"
+                    const prize = data.event.prize;
+                    triggerWinAnimation(winner, prize);
+
+                    // Update the main image dynamically after puzzle completion
+                    loadImages(); // Reload images to reflect the new current_image
+                }
+            };
+            eventSource.onerror = function() {
+                console.error('EventSource failed. Reconnecting...');
+                eventSource.close();
+                setTimeout(startEventSource, 5000);
+            };
+        }
+
+        function triggerWinAnimation(winner, prize) {
+            const winMessage = document.getElementById('winMessage');
+            winMessage.innerHTML = `${winner} just won ${prize} NFTOKEN!`;
+            winMessage.style.display = 'block';
+
+            // Create confetti
+            confettiParticles = [];
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push({
+                    x: random(width),
+                    y: random(-500, 0),
+                    speed: random(2, 5),
+                    color: color(random(255), random(255), random(255))
+                });
+            }
+
+            // Hide message after 5 seconds
+            setTimeout(() => {
+                winMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        function triggerTestWinAnimation() {
+            triggerWinAnimation('testuser', 10);
+        }
     </script>
 </body>
 </html>
