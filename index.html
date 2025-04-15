@@ -252,7 +252,7 @@
         }
 
         function animateConfetti(particles) {
-            confettiCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
             particles.forEach(p => {
                 p.x += p.vx;
                 p.y += p.vy;
@@ -262,7 +262,7 @@
                 p.opacity -= 0.005;
                 p.rotation += p.rotationSpeed;
 
-                if (p.y > window.innerHeight || p.x < 0 || p.x > window.innerWidth || p.opacity <= 0) return;
+                if (p.y > confettiCanvas.height || p.x < 0 || p.x > confettiCanvas.width || p.opacity <= 0) return;
 
                 confettiCtx.globalAlpha = p.opacity;
                 confettiCtx.fillStyle = p.color;
@@ -282,7 +282,7 @@
                 }
             });
 
-            const remainingParticles = particles.filter(p => p.y <= window.innerHeight && p.x >= 0 && p.x <= window.innerWidth && p.opacity > 0);
+            const remainingParticles = particles.filter(p => p.y <= confettiCanvas.height && p.x >= 0 && p.x <= confettiCanvas.width && p.opacity > 0);
             if (remainingParticles.length > 0) {
                 requestAnimationFrame(() => animateConfetti(remainingParticles));
             }
@@ -322,7 +322,7 @@ state = {
     'gameId': 0,
     'pieceId': 0,
     'cooldownSeconds': 5,
-    'minPrize': 50,
+    'minPrize': 1,
     'maxPrize': 50
 }
 
@@ -341,10 +341,6 @@ win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d
 win_audio.preload = 'auto'
 win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
 win_audio2.preload = 'auto'
-
-# Update queue to handle rapid state updates
-update_queue = []
-is_processing_updates = False
 
 # Cooldown timer state
 cooldown_duration = 5  # Default, will be updated from state
@@ -437,7 +433,8 @@ def draw_grid():
                             col * 400, row * 400, 400, 400,
                             x, y, cell_size, cell_size
                         )
-                    except Exception:
+                    except Exception as e:
+                        console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
                         grid_ctx.fillStyle = 'green'
                         grid_ctx.fillRect(x, y, cell_size, cell_size)
                         grid_ctx.fillStyle = 'white'
@@ -494,7 +491,8 @@ def draw_grid():
                                 col * 400, row * 400, 400, 400,
                                 x, y, cell_size, cell_size
                             )
-                        except Exception:
+                        except Exception as e:
+                            console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
                             grid_ctx.fillStyle = 'green'
                             grid_ctx.fillRect(x, y, cell_size, cell_size)
                             grid_ctx.fillStyle = 'white'
@@ -537,7 +535,8 @@ def draw_side_piece():
                     col * 400, row * 400, 400, 400,
                     0, 0, 210, 210
                 )
-            except Exception:
+            except Exception as e:
+                console.log(f"Error drawing side piece: {str(e)}")
                 side_ctx.fillStyle = 'yellow'
                 side_ctx.fillRect(0, 0, 210, 210)
                 side_ctx.fillStyle = 'black'
@@ -585,9 +584,6 @@ def hide_win_text():
     win_text = document.getElementById('win-announcement')
     win_text.style.display = 'none'
 
-def trigger_confetti():
-    window.triggerConfetti()
-
 def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
     console.log(f"Triggering win animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
     try:
@@ -600,23 +596,18 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.left = f"{center_x}px"
         win_text.style.top = f"{center_y}px"
 
-        if is_complete:
-            win_text.textContent = f"Puzzle completed! Everyone wins {prize} Break Bucks!"
-            win_text.classList.add('complete')
-            setTimeout(create_proxy(hide_win_text), 8000)
-        else:
-            win_text.textContent = f"Congrats! {winner_name} won {prize} Break Bucks!"
-            win_text.classList.remove('complete')
-            setTimeout(create_proxy(hide_win_text), 5000)
+        win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
+        win_text.classList.toggle('complete', is_complete)
+        setTimeout(create_proxy(hide_win_text), is_complete and 8000 or 5000)
         win_text.style.display = 'block'
         play_win_sound(is_complete)
-        trigger_confetti()
+        window.triggerConfetti()
     except Exception as e:
         console.log(f"Error in trigger_win_animation: {str(e)}")
 
 def test_win_animation(event=None):
     console.log("Testing win animation...")
-    trigger_win_animation(state['pieceId'], "TestUser", 50, False)
+    trigger_win_animation(state['pieceId'], state.get('testUser', 'TestUser'), state.get('minPrize', 50), False)
 
 def update_cooldown_timer(timestamp=None):
     global last_timer_update, timer_value, cooldown_duration
@@ -636,38 +627,23 @@ def update_cooldown_timer(timestamp=None):
     except Exception as e:
         console.log(f"Error in update_cooldown_timer: {str(e)}")
 
-async def process_update_queue():
-    global is_processing_updates
-    if is_processing_updates or not update_queue:
-        return
-    is_processing_updates = True
-    try:
-        while update_queue:
-            event_data = update_queue.pop(0)
-            await update_state(event_data)
-    except Exception as e:
-        console.log(f"Error in process_update_queue: {str(e)}")
-    finally:
-        is_processing_updates = False
-
 async def update_state(event_data):
     global is_initial_render, cooldown_duration, timer_value, last_timer_update
-    console.log(f"Updating state: {json.dumps(event_data)}")
+    console.log(f"Processing SSE event: {json.dumps(event_data)}")
     try:
+        event_type = event_data.get('type', 'unknown')
+        if event_type == 'win' or event_type == 'complete':
+            winner = event_data['event'].get('winner', 'Unknown')
+            prize = event_data['event'].get('prize', state.get('minPrize', 50))
+            console.log(f"Triggering {event_type} animation for {winner} with prize {prize}")
+            trigger_win_animation(state['pieceId'], winner, prize, event_type == 'complete')
+
         old_piece_id = state['pieceId']
         old_game_id = state['gameId']
         old_cooldown = state['cooldownSeconds']
         if 'state' in event_data:
             new_state = event_data['state']
-            if 'pieces' in new_state:
-                state['pieces'] = new_state['pieces']
-            if 'guesses' in new_state:
-                state['guesses'] = new_state['guesses']
-            if 'leaderboard' in new_state:
-                state['leaderboard'] = new_state['leaderboard']
-            for key, value in new_state.items():
-                if key not in ['pieces', 'guesses', 'leaderboard']:
-                    state[key] = value
+            deep_merge(state, new_state)
 
         if state['gameId'] != old_game_id:
             console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
@@ -682,53 +658,16 @@ async def update_state(event_data):
             timer_element.textContent = f"{round(timer_value)}"
 
         new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
-        if state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
+        if state['current_image'] and state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
         draw_grid()
         draw_side_piece()
         update_leaderboard()
-
-        event_type = event_data.get('type', 'unknown')
-        console.log(f"Event type: {event_type}")
-        if event_type == 'win':
-            winner = event_data['event'].get('winner', 'Unknown')
-            prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], winner, prize, False)
-        elif event_type == 'complete':
-            prize = event_data['event'].get('prize', 50)
-            trigger_win_animation(state['pieceId'], 'Everyone', prize, True)
     except Exception as e:
         console.log(f"Error in update_state: {str(e)}")
 
-# Initial state fetch
-async def init():
-    global is_initial_render
-    try:
-        console.log("Fetching initial game state...")
-        resp = await pyfetch('/game_state')
-        data = await resp.json()
-        console.log(f"Initial game state: {json.dumps(data)}")
-        event_data = {
-            "type": "init",
-            "state": data,
-            "event": {}
-        }
-        update_queue.append(event_data)
-        await process_update_queue()
-        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-        console.log("Starting cooldown timer...")
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Init error: {str(e)}")
-        draw_grid()
-        draw_side_piece()
-
-# SSE function to listen for game state updates with reconnection
 async def listen_sse():
     while True:
         try:
@@ -738,13 +677,11 @@ async def listen_sse():
                 try:
                     data = json.loads(event.data)
                     console.log(f"SSE event received: {json.dumps(data)}")
-                    event_data = {
+                    asyncio.ensure_future(update_state({
                         "type": data.get('type', 'unknown'),
                         "state": data.get('state', {}),
                         "event": data.get('event', {})
-                    }
-                    update_queue.append(event_data)
-                    asyncio.ensure_future(process_update_queue())
+                    }))
                 except Exception as e:
                     console.log(f"Error processing SSE event: {str(e)}")
 
@@ -760,7 +697,25 @@ async def listen_sse():
             console.log(f"SSE error: {str(e)}, reconnecting...")
         await asyncio.sleep(5)
 
-# Start the game after user interaction
+async def init():
+    global is_initial_render
+    try:
+        console.log("Fetching initial game state...")
+        resp = await pyfetch('/game_state')
+        data = await resp.json()
+        console.log(f"Initial game state: {json.dumps(data)}")
+        deep_merge(state, data)
+        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
+        draw_grid()
+        draw_side_piece()
+        update_leaderboard()
+        console.log("Starting cooldown timer...")
+        requestAnimationFrame(create_proxy(update_cooldown_timer))
+    except Exception as e:
+        console.log(f"Init error: {str(e)}")
+        draw_grid()
+        draw_side_piece()
+
 def start_game(event=None):
     console.log("Starting game...")
     document.getElementById('start-button').style.display = 'none'
