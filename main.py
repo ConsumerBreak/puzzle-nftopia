@@ -110,13 +110,7 @@ def exponential_backoff(func, max_retries=5, base_delay=1):
 class GameState:
     def __init__(self, bot):
         self.bot = bot
-        self.images = [
-            "puzzle01_00000.png",
-            "puzzle02_00000.png",
-            "puzzle03_00000.png",
-            "puzzle04_00000.png",
-            "puzzle05_00000.png"
-        ]  # Predefined list of images
+        self.images = []
         self.image_index = 0
         self.current_image = None
         self.pieces = {}
@@ -144,7 +138,7 @@ class GameState:
         return instance
 
     async def initialize_images(self):
-        """Validate predefined puzzle images in parallel."""
+        """Dynamically fetch puzzle images matching puzzleXX_00000.png in numerical order."""
         async def validate_image(image_name):
             url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
             try:
@@ -154,19 +148,31 @@ class GameState:
                             logger.info(f"Validated puzzle image: {image_name}")
                             return image_name
                         else:
-                            logger.warning(f"Image {image_name} not found: HTTP {response.status}")
+                            logger.debug(f"Image {image_name} not found: HTTP {response.status}")
                             return None
             except Exception as e:
-                logger.error(f"Error validating image {image_name}: {str(e)}")
+                logger.debug(f"Error validating image {image_name}: {str(e)}")
                 return None
 
-        tasks = [validate_image(image_name) for image_name in self.images]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        valid_images = [img for img in results if img and not isinstance(img, Exception)]
-        self.images = valid_images if valid_images else ["placeholder.png"]
-        self.current_image = self.images[0] if self.images else "placeholder.png"
-        logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
-        logger.info(f"Set initial current_image to: {self.current_image}")
+        self.images = []
+        max_attempts = 100  # Prevent infinite loops
+        for i in range(1, max_attempts + 1):
+            image_name = f"puzzle{i:02d}_00000.png"
+            result = await validate_image(image_name)
+            if result:
+                self.images.append(result)
+            else:
+                break  # Stop when an image is not found
+
+        if not self.images:
+            logger.warning("No puzzle images found, using placeholder")
+            self.images = ["placeholder.png"]
+            self.current_image = "placeholder.png"
+        else:
+            self.images.sort(key=lambda x: int(x.split('_')[0].replace('puzzle', '')))  # Sort by number
+            self.current_image = self.images[0]
+            logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
+            logger.info(f"Set initial current_image to: {self.current_image}")
 
     def load_leaderboard_from_sheet(self):
         global leaderboard_cache, leaderboard_cache_timestamp
