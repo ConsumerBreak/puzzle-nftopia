@@ -1,5 +1,3 @@
-index.html:
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -603,11 +601,11 @@ def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
         win_text.style.top = f"{center_y}px"
 
         if is_complete:
-            win_text.textContent = f"Puzzle completed! Everyone wins {prize} Break Bucks!"
+            win_text.textContent = f"Puzzle completed! Everyone wins {prize} NFTOKEN!"
             win_text.classList.add('complete')
             setTimeout(create_proxy(hide_win_text), 8000)
         else:
-            win_text.textContent = f"Congrats! {winner_name} won {prize} Break Bucks!"
+            win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
             win_text.classList.remove('complete')
             setTimeout(create_proxy(hide_win_text), 5000)
         win_text.style.display = 'block'
@@ -640,13 +638,15 @@ def update_cooldown_timer(timestamp=None):
 
 async def process_update_queue():
     global is_processing_updates
-    if is_processing_updates or not update_queue:
+    if is_processing_updates:
         return
     is_processing_updates = True
     try:
         while update_queue:
             event_data = update_queue.pop(0)
             await update_state(event_data)
+            # Force immediate redraw for guesses to minimize lag
+            draw_grid()
     except Exception as e:
         console.log(f"Error in process_update_queue: {str(e)}")
     finally:
