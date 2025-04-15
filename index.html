@@ -274,7 +274,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -406,122 +406,57 @@ async def update_image(url):
 def draw_grid():
     global is_initial_render
     try:
-        current_piece_count = len(state['pieces'])
-        last_piece_count = len(last_drawn_state['pieces'])
-        if not is_initial_render and current_piece_count < last_piece_count:
-            console.log(f"Piece count mismatch: current={current_piece_count}, last={last_piece_count}, forcing full redraw")
-            is_initial_render = True
+        grid_ctx.clearRect(0, 0, 350, 350)
+        cell_size = 70
+        for i in range(25):
+            x = (i % 5) * cell_size
+            y = (i // 5) * cell_size
+            grid_ctx.strokeStyle = '#00ff00'
+            grid_ctx.lineWidth = 3
+            grid_ctx.strokeRect(x, y, cell_size, cell_size)
 
-        if is_initial_render:
-            grid_ctx.clearRect(0, 0, 350, 350)
-            cell_size = 70
-            for i in range(25):
-                x = (i % 5) * cell_size
-                y = (i // 5) * cell_size
-                grid_ctx.strokeStyle = '#00ff00'
-                grid_ctx.lineWidth = 3
-                grid_ctx.strokeRect(x, y, cell_size, cell_size)
-
-                coord = grid_coords[i]
-                if coord in state['pieces']:
-                    section = state['pieces'][coord]
-                    col = section % 5
-                    row = section // 5
-                    if puzzle_img:
-                        try:
-                            grid_ctx.drawImage(
-                                puzzle_img,
-                                col * 400, row * 400, 400, 400,
-                                x, y, cell_size, cell_size
-                            )
-                        except Exception as e:
-                            console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
-                            grid_ctx.fillStyle = 'green'
-                            grid_ctx.fillRect(x, y, cell_size, cell_size)
-                            grid_ctx.fillStyle = 'white'
-                            grid_ctx.font = '30px Bebas Neue'
-                            grid_ctx.textAlign = 'center'
-                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                    else:
+            coord = grid_coords[i]
+            if coord in state['pieces']:
+                section = state['pieces'][coord]
+                col = section % 5
+                row = section // 5
+                if puzzle_img:
+                    try:
+                        grid_ctx.drawImage(
+                            puzzle_img,
+                            col * 400, row * 400, 400, 400,
+                            x, y, cell_size, cell_size
+                        )
+                    except Exception as e:
+                        console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
                         grid_ctx.fillStyle = 'green'
                         grid_ctx.fillRect(x, y, cell_size, cell_size)
                         grid_ctx.fillStyle = 'white'
                         grid_ctx.font = '30px Bebas Neue'
                         grid_ctx.textAlign = 'center'
                         grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                    grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                    grid_ctx.fillRect(x, y, cell_size, cell_size)
-                    grid_ctx.fillStyle = 'red'
-                    grid_ctx.font = '40px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
                 else:
-                    grid_ctx.fillStyle = '#ccffcc'
+                    grid_ctx.fillStyle = 'green'
+                    grid_ctx.fillRect(x, y, cell_size, cell_size)
+                    grid_ctx.fillStyle = 'white'
                     grid_ctx.font = '30px Bebas Neue'
                     grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-            is_initial_render = False
-            last_drawn_state['pieces'] = dict(state['pieces'])
-            last_drawn_state['guesses'] = dict(state['guesses'])
-        else:
-            cell_size = 70
-            for i in range(25):
-                coord = grid_coords[i]
-                current_piece = state['pieces'].get(coord)
-                current_guess = state['guesses'].get(coord)
-                last_piece = last_drawn_state['pieces'].get(coord)
-                last_guess = last_drawn_state['guesses'].get(coord)
-
-                if current_piece != last_piece or current_guess != last_guess or (last_piece is not None and current_piece is None):
-                    x = (i % 5) * cell_size
-                    y = (i // 5) * cell_size
-                    grid_ctx.clearRect(x, y, cell_size, cell_size)
-                    grid_ctx.strokeStyle = '#00ff00'
-                    grid_ctx.lineWidth = 3
-                    grid_ctx.strokeRect(x, y, cell_size, cell_size)
-
-                    if coord in state['pieces']:
-                        section = state['pieces'][coord]
-                        col = section % 5
-                        row = section // 5
-                        if puzzle_img:
-                            try:
-                                grid_ctx.drawImage(
-                                    puzzle_img,
-                                    col * 400, row * 400, 400, 400,
-                                    x, y, cell_size, cell_size
-                                )
-                            except Exception as e:
-                                console.log(f"Error drawing puzzle piece at {coord}: {str(e)}")
-                                grid_ctx.fillStyle = 'green'
-                                grid_ctx.fillRect(x, y, cell_size, cell_size)
-                                grid_ctx.fillStyle = 'white'
-                                grid_ctx.font = '30px Bebas Neue'
-                                grid_ctx.textAlign = 'center'
-                                grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                        else:
-                            grid_ctx.fillStyle = 'green'
-                            grid_ctx.fillRect(x, y, cell_size, cell_size)
-                            grid_ctx.fillStyle = 'white'
-                            grid_ctx.font = '30px Bebas Neue'
-                            grid_ctx.textAlign = 'center'
-                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                    elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                        grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                        grid_ctx.fillRect(x, y, cell_size, cell_size)
-                        grid_ctx.fillStyle = 'red'
-                        grid_ctx.font = '40px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
-                    else:
-                        grid_ctx.fillStyle = '#ccffcc'
-                        grid_ctx.font = '30px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
-
-            last_drawn_state['pieces'] = dict(state['pieces'])
-            last_drawn_state['guesses'] = dict(state['guesses'])
+                    grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
+            elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
+                grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'
+                grid_ctx.fillRect(x, y, cell_size, cell_size)
+                grid_ctx.fillStyle = 'red'
+                grid_ctx.font = '40px Bebas Neue'
+                grid_ctx.textAlign = 'center'
+                grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
+            else:
+                grid_ctx.fillStyle = '#ccffcc'
+                grid_ctx.font = '30px Bebas Neue'
+                grid_ctx.textAlign = 'center'
+                grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
+        last_drawn_state['pieces'] = dict(state['pieces'])
+        last_drawn_state['guesses'] = dict(state['guesses'])
+        is_initial_render = False
     except Exception as e:
         console.log(f"Error in draw_grid: {str(e)}")
 
@@ -651,8 +586,8 @@ async def update_state(event_data):
             new_state = event_data['state']
             deep_merge(state, new_state)
 
-        if state['gameId'] != old_game_id:
-            console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
+        if state['gameId'] != old_game_id or state['pieceId'] != old_piece_id:
+            console.log(f"State change detected: gameId={state['gameId']}, pieceId={state['pieceId']}, forcing full redraw")
             is_initial_render = True
 
         if state['cooldownSeconds'] != old_cooldown:
@@ -695,13 +630,13 @@ async def listen_sse():
             es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
 
             while True:
-                await asyncio.sleep(10)
+                await asyncio.sleep(5)
                 if es.readyState == 2:
                     console.log("SSE connection closed, reconnecting...")
                     break
         except Exception as e:
             console.log(f"SSE error: {str(e)}, reconnecting...")
-        await asyncio.sleep(5)
+        await asyncio.sleep(2)
 
 async def init():
     global is_initial_render
