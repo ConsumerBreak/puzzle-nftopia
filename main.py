@@ -331,8 +331,7 @@ class GameState:
                 if last_guess_time and time_since_last_guess < self.cooldown_seconds:
                     remaining_time = round(self.cooldown_seconds - time_since_last_guess)
                     logger.info(f"Guess rejected for {username} due to cooldown: {remaining_time}s remaining")
-                    await ctx.send(f"@{username} wait {remaining_time} seconds")
-                    return
+                    return False, f"@{username} wait {remaining_time} seconds"
 
                 # Update guess time after cooldown check
                 self.last_guess_times[username] = now
@@ -341,16 +340,15 @@ class GameState:
                 # Check if already solved
                 if coord in self.pieces:
                     logger.info(f"Guess rejected for {username}: {coord} already solved")
-                    await ctx.send(f"@{username} {coord} has already been solved. Try another spot!")
-                    return
+                    return False, f"@{username} {coord} has already been solved. Try another spot!"
 
                 # Process win or miss
                 if coord == self.expected_coord:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
-                    await ctx.send(f"@{username} You won {prize} NFTOKEN!")
-                    self.update_leaderboard_in_sheet(username)
+                    # Async leaderboard update to reduce lag
+                    asyncio.create_task(self.async_update_leaderboard(username))
                     logger.info(f"Win for {username} at {coord}, prize: {prize}")
                     self.notify_event('win', {'winner': username, 'prize': prize})
 
@@ -360,7 +358,6 @@ class GameState:
 
                     if not remaining_side_sections:
                         prize = self.get_random_prize()
-                        await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                         logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                         await asyncio.sleep(8)
@@ -371,7 +368,6 @@ class GameState:
                         while attempt < max_attempts:
                             if not remaining_side_sections:
                                 prize = self.get_random_prize()
-                                await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                                 logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                                 self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                                 await asyncio.sleep(8)
@@ -386,29 +382,35 @@ class GameState:
                             break
                         if attempt >= max_attempts:
                             prize = self.get_random_prize()
-                            await ctx.send(f"Puzzle completed. Everyone won {prize} NFTOKEN!")
                             logger.info(f"Sending complete event for puzzle completion, prize: {prize}")
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                             await asyncio.sleep(8)
                             self.initialize_puzzle()
-                            return
+                            return True, f"@{username} You won {prize} NFTOKEN!"
 
                         self.side_piece_section = self.current_piece
                         self.natural_section = self.section_mapping[self.current_piece]
                         self.expected_section = self.current_piece
                         self.expected_coord = self.index_to_coord(self.natural_section)
                         self.piece_id += 1
-                        self.guesses = {}
+                        self.guesses = {}  # Clear guesses on win
+                    return True, f"@{username} You won {prize} NFTOKEN!"
                 else:
                     self.guesses[coord] = 'miss'
-                    await ctx.send(f"@{username} Wrong!")
                     logger.info(f"Miss for {username} at {coord}")
+                    return True, f"@{username} Wrong!"
 
                 self.notify_state_update()
                 logger.info(f"Guess processed for {username} in {time.time() - start_time:.3f}s")
             except Exception as e:
                 logger.error(f"ERROR in guess method: {str(e)}", exc_info=True)
-                await ctx.send(f"@{username} an error occurred while processing your guess. Please try again.")
+                return False, f"@{username} an error occurred while processing your guess. Please try again."
+
+    async def async_update_leaderboard(self, username):
+        try:
+            self.update_leaderboard_in_sheet(username)
+        except Exception as e:
+            logger.error(f"Async leaderboard update failed for {username}: {str(e)}")
 
     def get_state(self):
         sorted_leaderboard = sorted((self.cached_leaderboard or self.load_leaderboard_from_sheet()).items(),
@@ -561,8 +563,14 @@ async def main():
             return
         now = time.time()
         message_id = getattr(message, 'id', f"no-id-{now}")
-        message_key = f"{message_id}-{message.author.name}-{message.content[:50]}"
+        message_key = f"{message_id}-{message.author.name}-{message.content[:50]}-{now}"
         
+        # Stricter deduplication
+        if message_id in processed_messages:
+            logger.debug(f"Skipping duplicate message ID: {message_id}")
+            return
+        processed_messages.append(message_id)
+
         # Debounce: ignore messages within 100ms of the same key
         for ts, key in list(message_timestamps):
             if now - ts < 0.1 and key == message_key:
@@ -570,10 +578,6 @@ async def main():
                 return
         message_timestamps.append((now, message_key))
 
-        if message_id in processed_messages:
-            logger.debug(f"Skipping duplicate message ID: {message_id}")
-            return
-        processed_messages.append(message_id)
         logger.info(f"Processing message: {message_key}")
         await bot.handle_commands(message)
 
@@ -589,7 +593,9 @@ async def main():
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
             if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
-                await game_state.guess(guess.upper(), username, ctx)
+                success, response = await game_state.guess(guess.upper(), username, ctx)
+                if success:
+                    await ctx.send(response)
             else:
                 logger.debug(f"Ignored invalid command or coordinate by {username}: {ctx.message.content}")
                 await ctx.send(f"@{username} invalid coordinate! Use format like A1, B3, etc.")
@@ -618,9 +624,9 @@ async def main():
     @bot.command(name='win')
     async def win_command(ctx):
         username = ctx.author.name.lower().strip()
-        logger.info(f"Win command invoked by {username}: {ctx.message.content}")
         user_lock = user_locks.setdefault(username, asyncio.Lock())
         async with user_lock:
+            logger.info(f"Win command invoked by {username}: {ctx.message.content}")
             if not await global_rate_limiter.consume():
                 logger.info(f"Global rate limit exceeded for {username}, ignoring command")
                 return
