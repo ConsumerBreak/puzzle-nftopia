@@ -241,12 +241,14 @@ class GameState:
             logger.error(f"Failed to update leaderboard: {str(e)}", exc_info=True)
 
     def initialize_puzzle(self):
+        logger.info(f"Initializing puzzle for game ID {self.game_id + 1}")
         self.pieces = {}
         self.guesses = {}
         sections = list(range(25))
         random.shuffle(sections)
         self.section_mapping = {i: sections[i] for i in range(25)}
         self.reverse_section_mapping = {v: k for k, v in self.section_mapping.items()}
+        logger.info(f"Section mapping created: {self.section_mapping}")
         remaining_sections = list(range(25))
         if remaining_sections:
             self.current_piece = remaining_sections.pop(0)
@@ -254,16 +256,19 @@ class GameState:
             self.natural_section = self.section_mapping[self.current_piece]
             self.expected_section = self.current_piece
             self.expected_coord = self.index_to_coord(self.natural_section)
+            logger.info(f"Set initial piece: current_piece={self.current_piece}, natural_section={self.natural_section}, expected_coord={self.expected_coord}")
         # Only update current_image if images are available, and cycle through them
         if self.images:
             logger.info(f"Before setting current_image: current_image={self.current_image}, image_index={self.image_index}")
             self.current_image = self.images[self.image_index]
             self.image_index = (self.image_index + 1) % len(self.images)
-            logger.info(f"After setting current_image: current_image={self.current_image}, image_index={self.image_index}")
+            logger.info(f"Selected puzzle image: {self.current_image} (index {self.image_index})")
         else:
             self.current_image = "placeholder.png"
+            logger.warning("No images available, using placeholder.png")
         self.game_id += 1
         self.piece_id += 1
+        logger.info(f"Puzzle initialized: game_id={self.game_id}, piece_id={self.piece_id}")
         self.notify_state_update()
 
     def index_to_coord(self, index):
@@ -297,7 +302,7 @@ class GameState:
                 raise ValueError("Minimum prize cannot be greater than maximum prize!")
             self.min_prize = min_val
             self.max_prize = max_val
-            return f"Prize range has been set to {min_val}-{max_val} Break Bucks"
+            return f"Prize range has been set to {min_val}-{max_val} NFTOKEN"
         except ValueError as e:
             return f"Invalid prize range! {str(e)}"
 
@@ -324,7 +329,7 @@ class GameState:
                     section_index = self.natural_section
                     self.pieces[coord] = section_index
                     prize = self.get_random_prize()
-                    await ctx.send(f"Nice job, {username}! Piece placed at {coord}.")
+                    await ctx.send(f"@{username} Piece solved. You win {prize} NFTOKEN!")
                     await ctx.send(f"!tip {username} {prize}")
                     self.update_leaderboard_in_sheet(username)
 
@@ -334,7 +339,7 @@ class GameState:
 
                     if not remaining_side_sections:
                         prize = self.get_random_prize()
-                        await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                        await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                         await ctx.send(f"!tip all {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                         await asyncio.sleep(8)
@@ -346,7 +351,7 @@ class GameState:
                     while attempt < max_attempts:
                         if not remaining_side_sections:
                             prize = self.get_random_prize()
-                            await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                            await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                             await ctx.send(f"!tip all {prize}")
                             self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                             await asyncio.sleep(8)
@@ -361,7 +366,7 @@ class GameState:
                         break
                     if attempt >= max_attempts:
                         prize = self.get_random_prize()
-                        await ctx.send(f"Puzzle completed! Everyone wins {prize} Break Bucks!")
+                        await ctx.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
                         await ctx.send(f"!tip all {prize}")
                         self.notify_event('complete', {'winner': 'Everyone', 'prize': prize})
                         await asyncio.sleep(8)
@@ -378,6 +383,7 @@ class GameState:
                     self.notify_event('win', {'winner': username, 'prize': prize})
                 else:
                     self.guesses[coord] = 'miss'
+                    await ctx.send(f"@{username} Wrong!")
             else:
                 await ctx.send(f"@{username} {coord} has already been solved.")
             self.notify_state_update()
@@ -528,7 +534,7 @@ async def main():
     async def event_raw_data(data):
         logger.debug(f"Twitch raw data: {data}")
 
-    @bot.command(name='g')
+    @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
         try:
             if not global_rate_limiter.consume():
