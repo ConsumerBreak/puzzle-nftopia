@@ -24,18 +24,18 @@ logger = logging.getLogger(__name__)
 # Set twitchio logging to DEBUG
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 CORS(app)
 
 # Content Security Policy
 CSP_HEADER = (
-    "default-src 'self' https://cdn.glitch.global https://cdn.jsdelivr.net; "
-    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+    "default-src 'self' https://cdn.glitch.global; "
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global https://via.placeholder.com data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://*.render.com wss://*.render.com blob:;"
+    "connect-src 'self' https://*.render.com wss://*.render.com;"
 )
 
 # Track app start time
@@ -490,12 +490,14 @@ def index():
     response = send_file('index.html', mimetype='text/html')
     response.headers['Content-Security-Policy'] = CSP_HEADER
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
     return response
 
 @app.route('/game_state')
 def get_game_state():
     response = Response(json.dumps(game_state.get_state()), mimetype='application/json')
     response.headers['Content-Security-Policy'] = CSP_HEADER
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
 @app.route('/events')
@@ -554,11 +556,23 @@ def debug():
         logger.error(f"Debug endpoint error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/static/<path:path>')
+def serve_static(path):
+    response = send_file(os.path.join('static', path))
+    if path.endswith('.js'):
+        response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    elif path.endswith('.css'):
+        response.headers['Content-Type'] = 'text/css; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Content-Security-Policy'] = CSP_HEADER
+    return response
+
 @app.errorhandler(404)
 def not_found(error):
     logger.warning(f"404 error: {str(error)}")
     response = send_file('index.html', mimetype='text/html')
     response.headers['Content-Security-Policy'] = CSP_HEADER
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
     return response, 404
 
 @app.errorhandler(500)
@@ -674,7 +688,7 @@ async def main():
             logger.debug(f"Processing guess command: ID={command_id}, Content={ctx.message.content}")
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
-            if guess and guess.upper() in [f"{chr        (65+i)}{j}" for i in range(5) for j in range(1, 6)]:
+            if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
                 await game_state.guess(guess.upper(), ctx.author.name, ctx)
             else:
                 await ctx.send("Invalid coordinate! Use format like A1, B3, etc.")
