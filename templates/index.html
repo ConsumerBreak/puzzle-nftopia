@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2024.3.1/dist/core.css">
-    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2024.3.1/dist/core.js" type="module"></script>
+    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2023.11.2/dist/core.css">
+    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2023.11.2/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -167,6 +167,15 @@
             display: none;
             text-align: center;
         }
+        #loading-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 30px;
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
         @keyframes winPop {
             0% { transform: translate(-50%, -50%) scale(0) rotate(-15deg); opacity: 0; }
             70% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
@@ -219,35 +228,45 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        console.log("Page loaded, initializing...");
+        console.log("Page loaded, initializing JavaScript...");
 
+        // PyScript fallback
         const pyscriptJs = document.getElementById('pyscript-js');
         pyscriptJs.onerror = () => {
-            console.log("unpkg.com failed, switching to jsdelivr.net CDN...");
-            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2024.3.1/dist/core.js";
+            console.log("unpkg.com failed, trying jsdelivr.net...");
+            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.2/dist/core.js";
             const pyscriptCss = document.getElementById('pyscript-css');
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.3.1/dist/core.css";
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.2/dist/core.css";
         };
 
+        // Initialize canvas
+        const gridCanvas = document.getElementById('grid');
+        const gridCtx = gridCanvas.getContext('2d');
+        const confettiCanvas = document.getElementById('confetti-canvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+
+        // Window load handler
         window.addEventListener('load', () => {
             console.log("Window load event fired");
-            const gridCanvas = document.getElementById('grid');
             const loadingMessage = document.getElementById('loading-message');
             const startButton = document.getElementById('start-button');
-            const container = document.querySelector('.container');
+            const errorMessage = document.getElementById('error-message');
             if (!gridCanvas) {
                 console.error("Grid canvas not found!");
-                document.getElementById('error-message').textContent = "Error: Game canvas not loaded. Please refresh.";
-                document.getElementById('error-message').style.display = 'block';
+                errorMessage.textContent = "Error: Game canvas not loaded. Please refresh.";
+                errorMessage.style.display = 'block';
                 loadingMessage.style.display = 'none';
                 return;
             }
             console.log("Grid canvas found, showing start button");
+            drawPlaceholderGrid();
             loadingMessage.style.display = 'none';
             startButton.style.display = 'block';
-            drawPlaceholderGrid();
         });
 
+        // Visibility handling
         let animationFrameId = null;
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -261,15 +280,10 @@
             }
         });
 
-        const confettiCanvas = document.getElementById('confetti-canvas');
-        const confettiCtx = confettiCanvas.getContext('2d');
-        confettiCanvas.width = window.innerWidth;
-        confettiCanvas.height = window.innerHeight;
-
+        // Confetti functions
         function createConfetti() {
             console.log("Creating confetti");
             const particles = [];
-            const gridCanvas = document.getElementById('grid');
             const gridRect = gridCanvas.getBoundingClientRect();
             const centerX = gridRect.left + 175;
             const centerY = gridRect.top + 175;
@@ -344,7 +358,7 @@
 
             const remainingParticles = particles.filter(p => p.y <= window.innerHeight && p.x >= 0 && p.x <= window.innerWidth && p.opacity > 0);
             if (remainingParticles.length > 0 && !document.hidden) {
-                requestAnimationFrame(() => animateConfetti(remainingParticles));
+                animationFrameId = requestAnimationFrame(() => animateConfetti(remainingParticles));
             }
         }
 
@@ -353,10 +367,9 @@
             animateConfetti(particles);
         };
 
+        // Placeholder grid
         function drawPlaceholderGrid() {
             console.log("Drawing placeholder grid");
-            const gridCanvas = document.getElementById('grid');
-            const gridCtx = gridCanvas.getContext('2d');
             gridCtx.clearRect(0, 0, 350, 350);
             const cellSize = 70;
             for (let i = 0; i < 25; i++) {
