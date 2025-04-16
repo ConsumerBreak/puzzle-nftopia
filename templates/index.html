@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2025.3.1/dist/core.css">
-    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2025.3.1/dist/core.js" type="module"></script>
+    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2024.3.1/dist/core.css">
+    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2024.3.1/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -224,9 +224,9 @@
         const pyscriptJs = document.getElementById('pyscript-js');
         pyscriptJs.onerror = () => {
             console.log("unpkg.com failed, switching to jsdelivr.net CDN...");
-            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2025.3.1/dist/core.js";
+            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2024.3.1/dist/core.js";
             const pyscriptCss = document.getElementById('pyscript-css');
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2025.3.1/dist/core.css";
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.3.1/dist/core.css";
         };
 
         window.addEventListener('load', () => {
@@ -286,16 +286,7 @@
                     y: centerY,
                     vx: (Math.random() - 0.5) * 12,
                     vy: (Math.random() - 0.5) * 12,
-                    color: `hsl(${Math.random() * 360}, 100 %
-
-System: The response was cut off due to length constraints. Below is the completion of the `templates/index.html` file, followed by additional setup instructions to resolve the issues and deploy your Twitch game successfully on Render.
-
----
-
-#### `templates/index.html` (Continued)
-
-```html
-%, 50%)`,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
                     size: Math.random() * 5 + 3,
                     shape: shape,
                     opacity: 1,
@@ -343,7 +334,7 @@ System: The response was cut off due to length constraints. Below is the complet
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -431,7 +422,6 @@ is_initial_render = True
 win_audio = None
 win_audio2 = None
 try:
-    # Update these URLs to point to your Glitch CDN or another accessible location
     win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3')
     win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
     console.log("Audio preloaded successfully")
@@ -770,7 +760,7 @@ async def update_state(event_data):
             timer_element = document.getElementById('cooldown-timer')
             timer_element.textContent = f"{round(timer_value)}"
 
-        new_image_url = state['current_image']  # Use full CDN URL from state
+        new_image_url = state['current_image']
         if new_image_url != puzzle_img_url:
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
@@ -807,7 +797,7 @@ async def init():
             "timestamp": time.time()
         }
         await update_state(event_data)
-        await update_image(data['current_image'])  # Use full CDN URL
+        await update_image(data['current_image'])
         draw_grid()
         draw_side_piece()
         update_leaderboard()
