@@ -7,8 +7,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/pyscript/core.css">
-    <script defer src="/static/pyscript/core.js" type="module"></script>
+    <!-- Primary CDN: unpkg.com -->
+    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2025.3.1/dist/core.css">
+    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2025.3.1/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -220,6 +221,16 @@
     <div id="error-message"></div>
     <script>
         console.log("Page loaded, initializing...");
+
+        // Fallback for PyScript if unpkg.com fails
+        const pyscriptJs = document.getElementById('pyscript-js');
+        pyscriptJs.onerror = () => {
+            console.log("unpkg.com failed, switching to jsdelivr.net CDN...");
+            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2025.3.1/dist/core.js";
+            const pyscriptCss = document.getElementById('pyscript-css');
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2025.3.1/dist/core.css";
+        };
+
         window.addEventListener('load', () => {
             console.log("Window load event fired");
             const gridCanvas = document.getElementById('grid');
