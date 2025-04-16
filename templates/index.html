@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link id="pyscript-css" rel="stylesheet" href="https://unpkg.com/pyscript@2023.11.2/dist/core.css">
-    <script id="pyscript-js" defer src="https://unpkg.com/pyscript@2023.11.2/dist/core.js" type="module"></script>
+    <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/releases/2023.11.1/core.css">
+    <script id="pyscript-js" defer src="https://pyscript.net/releases/2023.11.1/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -233,19 +233,37 @@
         // PyScript fallback
         const pyscriptJs = document.getElementById('pyscript-js');
         pyscriptJs.onerror = () => {
-            console.log("unpkg.com failed, trying jsdelivr.net...");
-            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.2/dist/core.js";
+            console.log("pyscript.net failed, trying jsdelivr.net...");
+            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.1/dist/core.js";
             const pyscriptCss = document.getElementById('pyscript-css');
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.2/dist/core.css";
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.1/dist/core.css";
+            setTimeout(() => {
+                if (!window.PyScript) {
+                    console.error("PyScript failed to load from both CDNs");
+                    document.getElementById('error-message').textContent = "Failed to load game scripts. Please refresh or try later.";
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('loading-message').style.display = 'none';
+                }
+            }, 5000);
         };
 
         // Initialize canvas
         const gridCanvas = document.getElementById('grid');
-        const gridCtx = gridCanvas.getContext('2d');
+        let gridCtx;
+        if (gridCanvas) {
+            gridCtx = gridCanvas.getContext('2d');
+        } else {
+            console.error("Grid canvas not found");
+        }
         const confettiCanvas = document.getElementById('confetti-canvas');
-        const confettiCtx = confettiCanvas.getContext('2d');
-        confettiCanvas.width = window.innerWidth;
-        confettiCanvas.height = window.innerHeight;
+        let confettiCtx;
+        if (confettiCanvas) {
+            confettiCtx = confettiCanvas.getContext('2d');
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+        } else {
+            console.error("Confetti canvas not found");
+        }
 
         // Window load handler
         window.addEventListener('load', () => {
@@ -253,14 +271,14 @@
             const loadingMessage = document.getElementById('loading-message');
             const startButton = document.getElementById('start-button');
             const errorMessage = document.getElementById('error-message');
-            if (!gridCanvas) {
-                console.error("Grid canvas not found!");
+            if (!gridCanvas || !gridCtx) {
+                console.error("Grid canvas or context not initialized");
                 errorMessage.textContent = "Error: Game canvas not loaded. Please refresh.";
                 errorMessage.style.display = 'block';
                 loadingMessage.style.display = 'none';
                 return;
             }
-            console.log("Grid canvas found, showing start button");
+            console.log("Grid canvas found, drawing placeholder grid");
             drawPlaceholderGrid();
             loadingMessage.style.display = 'none';
             startButton.style.display = 'block';
@@ -284,6 +302,7 @@
         function createConfetti() {
             console.log("Creating confetti");
             const particles = [];
+            if (!gridCanvas) return particles;
             const gridRect = gridCanvas.getBoundingClientRect();
             const centerX = gridRect.left + 175;
             const centerY = gridRect.top + 175;
@@ -312,6 +331,7 @@
         }
 
         function drawStar(ctx, x, y, size, rotation) {
+            if (!ctx) return;
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(rotation * Math.PI / 180);
@@ -326,6 +346,7 @@
         }
 
         function animateConfetti(particles) {
+            if (!confettiCtx) return;
             confettiCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
             particles.forEach(p => {
                 p.x += p.vx;
@@ -369,6 +390,10 @@
 
         // Placeholder grid
         function drawPlaceholderGrid() {
+            if (!gridCtx) {
+                console.error("Cannot draw grid: gridCtx is undefined");
+                return;
+            }
             console.log("Drawing placeholder grid");
             gridCtx.clearRect(0, 0, 350, 350);
             const cellSize = 70;
@@ -398,9 +423,9 @@ console.log("PyScript loaded, starting Python initialization...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
-grid_ctx = grid_canvas.getContext('2d')
+grid_ctx = grid_canvas.getContext('2d') if grid_canvas else None
 side_canvas = document.getElementById('side-piece')
-side_ctx = side_canvas.getContext('2d')
+side_ctx = side_canvas.getContext('2d') if side_canvas else None
 
 # Game state
 state = {
@@ -507,6 +532,9 @@ async def update_image(url):
 
 def draw_grid():
     global is_initial_render
+    if not grid_ctx:
+        console.log("Cannot draw grid: grid_ctx is None")
+        return
     current_piece_count = len(state['pieces'])
     last_piece_count = len(last_drawn_state['pieces'])
     if not is_initial_render and current_piece_count < last_piece_count:
@@ -623,6 +651,9 @@ def draw_grid():
         last_drawn_state['guesses'] = dict(state['guesses'])
 
 def draw_side_piece():
+    if not side_ctx:
+        console.log("Cannot draw side piece: side_ctx is None")
+        return
     side_ctx.clearRect(0, 0, 210, 210)
     if state['natural_section'] is not None:
         section = state['natural_section']
