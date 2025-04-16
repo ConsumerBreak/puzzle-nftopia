@@ -7,7 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="/static/pyscript/core.js?t=1744770000" type="module"></script>
+    <link rel="stylesheet" href="/static/pyscript/core.css">
+    <script defer src="/static/pyscript/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -758,7 +759,7 @@ async def update_state(event_data):
         draw_side_piece()
         update_leaderboard()
 
-        event_type = event_data.getRm('type', 'unknown')
+        event_type = event_data.get('type', 'unknown')
         console.log(f"Event type: {event_type}")
         if event_type == 'win':
             winner = event_data['event'].get('winner', 'Unknown')
