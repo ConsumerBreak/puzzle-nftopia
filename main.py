@@ -2,7 +2,7 @@ import os
 import random
 import json
 import aiohttp
-from flask import Flask, Response, send_file
+from flask import Flask, Response, send_file, jsonify
 from flask_cors import CORS
 from twitchio.ext import commands
 import queue
@@ -21,13 +21,13 @@ from hypercorn.asyncio import serve
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Set twitchio logging to DEBUG for more detailed output
+# Set twitchio logging to DEBUG
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes to handle cross-origin requests
+CORS(app)  # Enable CORS for cross-origin requests
 
-# Content Security Policy header (updated to include latest PyScript and fallback CDN)
+# Content Security Policy
 CSP_HEADER = (
     "default-src 'self' https://cdn.glitch.global https://pyscript.net https://cdn.jsdelivr.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
@@ -38,7 +38,10 @@ CSP_HEADER = (
     "connect-src 'self' https://cdn.jsdelivr.net https://pyscript.net https://*.render.com wss://*.render.com blob:;"
 )
 
-# Check for required environment variables
+# Track app start time for uptime
+APP_START_TIME = time.time()
+
+# Check environment variables
 required_env_vars = ['TWITCH_TOKEN', 'TWITCH_CLIENT_ID', 'GOOGLE_CREDENTIALS']
 missing_vars = [var for var in required_env_vars if var not in os.environ]
 if missing_vars:
@@ -61,7 +64,7 @@ leaderboard_cache_timestamp = None
 LEADERBOARD_CACHE_DURATION = 30  # Cache for 30 seconds
 cache_lock = Lock()
 
-# Rate limiter for commands
+# Rate limiter
 class RateLimiter:
     def __init__(self, rate, per):
         self.rate = rate
@@ -86,7 +89,7 @@ class RateLimiter:
 
 global_rate_limiter = RateLimiter(rate=10, per=5)
 
-# Message deduplication cache
+# Message deduplication
 class MessageDeduplicator:
     def __init__(self, window_seconds=5, max_size=1000):
         self.seen_messages = deque(maxlen=max_size)
@@ -106,7 +109,7 @@ class MessageDeduplicator:
 
 message_deduplicator = MessageDeduplicator(window_seconds=5, max_size=1000)
 
-# Command deduplication cache
+# Command deduplication
 class CommandDeduplicator:
     def __init__(self, window_seconds=5, max_size=1000):
         self.seen_commands = deque(maxlen=max_size)
@@ -126,7 +129,7 @@ class CommandDeduplicator:
 
 command_deduplicator = CommandDeduplicator(window_seconds=5, max_size=1000)
 
-# Exponential backoff for API calls
+# Exponential backoff
 def exponential_backoff(func, max_retries=5, base_delay=1):
     retries = 0
     while retries < max_retries:
@@ -193,11 +196,10 @@ class GameState:
                             break
                 except Exception as e:
                     logger.error(f"Error checking puzzle image {image_name}: {str(e)}")
-                    # Fallback to placeholder if CDN fails
                     self.images.append("placeholder.png")
                     break
         if not self.images:
-            logger.warning("No puzzle images found, using a placeholder")
+            logger.warning("No puzzle images found, using placeholder")
             self.images = ["placeholder.png"]
         self.current_image = self.images[0] if self.images else "placeholder.png"
         logger.info(f"Initialized with {len(self.images)} puzzle images: {self.images}")
@@ -487,6 +489,7 @@ class GameState:
 def index():
     response = send_file('index.html', mimetype='text/html')
     response.headers['Content-Security-Policy'] = CSP_HEADER
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
 @app.route('/game_state')
@@ -500,7 +503,6 @@ def sse():
     def stream():
         last_ping_time = 0
         PING_INTERVAL = 5
-
         while True:
             try:
                 try:
@@ -523,7 +525,6 @@ def sse():
                         last_ping_time = current_time
                     time.sleep(0.1)
                     continue
-
             except (BrokenPipeError, ConnectionError, OSError) as e:
                 logger.info(f"SSE client disconnected: {str(e)}")
                 break
@@ -540,13 +541,39 @@ def sse():
 @app.route('/health')
 def health_check():
     try:
-        # Simple check to ensure the app is responsive
-        return "OK", 200
+        uptime = time.time() - APP_START_TIME
+        return jsonify({"status": "OK", "uptime_seconds": int(uptime)}), 200
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return "ERROR", 500
+        return jsonify({"status": "ERROR", "error": str(e)}), 500
 
-# Test Twitch token validity
+@app.route('/debug')
+def debug():
+    try:
+        return jsonify({
+            "app": "Twitch Puzzle Game",
+            "version": "1.0",
+            "uptime_seconds": int(time.time() - APP_START_TIME),
+            "images": game_state.images if game_state else [],
+            "current_image": game_state.current_image if game_state else None
+        }), 200
+    except Exception as e:
+        logger.error(f"Debug endpoint error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    logger.warning(f"404 error: {str(error)}")
+    response = send_file('index.html', mimetype='text/html')
+    response.headers['Content-Security-Policy'] = CSP_HEADER
+    return response, 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"500 error: {str(error)}")
+    return jsonify({"error": "Internal server error, please try again later"}), 500
+
+# Test Twitch token
 async def test_twitch_token():
     token = os.environ['TWITCH_TOKEN']
     client_id = os.environ['TWITCH_CLIENT_ID']
@@ -564,7 +591,7 @@ async def test_twitch_token():
                 logger.error(f"Twitch token validation failed: HTTP {response.status}, {await response.text()}")
                 return False
 
-# Start the bot with a delay and detailed error handling
+# Start bot with delay
 async def start_bot_with_delay(bot):
     logger.info("Starting Twitch bot delay...")
     await asyncio.sleep(5)
