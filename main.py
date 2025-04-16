@@ -16,6 +16,9 @@ from twitchio.ext import commands
 app = Flask(__name__)
 CORS(app)
 
+# Debug Environment Variables
+app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
+
 # Twitch Bot Configuration
 BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
 app.logger.info(f"TWITCH_BOT_TOKEN is set: {'True' if BOT_TOKEN else 'False'}")
@@ -50,13 +53,20 @@ last_event_timestamp = 0
 # Google Sheets Setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
+sheet = None
 credentials_json = os.getenv('GOOGLE_CREDENTIALS')
-if not credentials_json:
-    raise ValueError("GOOGLE_CREDENTIALS environment variable not set")
-credentials_dict = json.loads(credentials_json)
-creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
-client = gspread.authorize(creds)
-sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+if credentials_json:
+    try:
+        credentials_dict = json.loads(credentials_json)
+        creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+        app.logger.info("Google Sheets initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize Google Sheets: {str(e)}")
+        sheet = None
+else:
+    app.logger.warning("GOOGLE_CREDENTIALS not set. Leaderboard functionality will be disabled.")
 
 # Initialize Puzzle Images
 def init_puzzle_images():
@@ -111,30 +121,44 @@ def init_game():
 
 # Load Leaderboard
 def load_leaderboard():
-    records = sheet.get_all_values()
-    app.logger.info(f"Fetched records from sheet: {records}")
-    leaderboard_dict = {}
-    for row in records[1:]:
-        if len(row) >= 2 and row[0] and row[1]:
-            username = row[0].strip()
-            try:
-                wins = int(row[1])
-                leaderboard_dict[username] = wins
-            except ValueError:
-                continue
-    app.logger.info(f"Parsed leaderboard: {leaderboard_dict}")
-    game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
-    app.logger.info("Successfully loaded leaderboard from sheet")
+    if not sheet:
+        app.logger.warning("Google Sheets not available. Returning empty leaderboard.")
+        game_state['leaderboard'] = []
+        return
+    try:
+        records = sheet.get_all_values()
+        app.logger.info(f"Fetched records from sheet: {records}")
+        leaderboard_dict = {}
+        for row in records[1:]:
+            if len(row) >= 2 and row[0] and row[1]:
+                username = row[0].strip()
+                try:
+                    wins = int(row[1])
+                    leaderboard_dict[username] = wins
+                except ValueError:
+                    continue
+        app.logger.info(f"Parsed leaderboard: {leaderboard_dict}")
+        game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
+        app.logger.info("Successfully loaded leaderboard from sheet")
+    except Exception as e:
+        app.logger.error(f"Failed to load leaderboard: {str(e)}")
+        game_state['leaderboard'] = []
 
 # Update Leaderboard
 def update_leaderboard(username):
-    records = sheet.get_all_values()
-    leaderboard_dict = {row[0]: int(row[1]) for row in records[1:] if len(row) >= 2 and row[0] and row[1]}
-    leaderboard_dict[username] = leaderboard_dict.get(username, 0) + 1
-    updated_records = [['Username', 'Wins']] + [[k, str(v)] for k, v in leaderboard_dict.items()]
-    sheet.clear()
-    sheet.update('A1', updated_records)
-    game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
+    if not sheet:
+        app.logger.warning("Google Sheets not available. Skipping leaderboard update.")
+        return
+    try:
+        records = sheet.get_all_values()
+        leaderboard_dict = {row[0]: int(row[1]) for row in records[1:] if len(row) >= 2 and row[0] and row[1]}
+        leaderboard_dict[username] = leaderboard_dict.get(username, 0) + 1
+        updated_records = [['Username', 'Wins']] + [[k, str(v)] for k, v in leaderboard_dict.items()]
+        sheet.clear()
+        sheet.update('A1', updated_records)
+        game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
+    except Exception as e:
+        app.logger.error(f"Failed to update leaderboard: {str(e)}")
 
 # Send State Update
 def send_state_update():
