@@ -1,11 +1,10 @@
 aiohttp==3.11.16
 certifi==2025.1.31
 Flask==2.2.5
+Flask-Cors==4.0.1
 twitchio==2.8.2
 gspread==5.12.0
 oauth2client==4.1.3
 python-dotenv==0.21.1
 hypercorn==0.17.3
-flask-socketio==5.3.6
-python-socketio==5.11.3
-gevent==24.2.1
+requests==2.31.0
