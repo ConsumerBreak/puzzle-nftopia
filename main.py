@@ -8,7 +8,7 @@ from threading import Thread
 
 import gspread
 import requests
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, make_response
 from flask_cors import CORS
 from google.oauth2.service_account import Credentials
 from twitchio.ext import commands
@@ -46,7 +46,7 @@ last_event_timestamp = 0
 
 # Google Sheets Setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'  # Updated ID
+SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
 # Load credentials from environment variable
 credentials_json = os.getenv('GOOGLE_CREDENTIALS')
 if not credentials_json:
@@ -241,8 +241,15 @@ def run_bot():
     app.logger.info("Starting Twitch bot delay...")
     time.sleep(5)
     app.logger.info("Twitch bot delay completed, attempting to start bot...")
+    
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     bot = Bot()
     bot.run()
+    # Close the loop after the bot is done (though it typically runs indefinitely)
+    loop.close()
 
 if __name__ == '__main__':
     app.logger.info("Main script starting")
