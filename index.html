@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="https://cdn.jsdelivr.net/npm/pyscript@2024.12.1/dist/core.js" type="module"></script>
+    <script defer src="/static/pyscript/core.js?t=1744770000" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -190,7 +190,8 @@
     </style>
 </head>
 <body>
-    <button id="start-button">Click to Start Game</button>
+    <div id="loading-message">Loading Puzzle Break...</div>
+    <button id="start-button" style="display: none;">Click to Start Game</button>
     <button id="test-win-button" style="display: none;">Test Win Animation</button>
     <div class="container" style="display: none;">
         <div>
@@ -207,7 +208,7 @@
             </div>
             <div id="timer-container">
                 <div id="timer-description">
-                    see what second you're on when you guess, and then you can guess again when the timer comes back to that second.
+                    See what second you're on when you guess, then guess again when the timer returns to that second.
                 </div>
                 <div id="cooldown-timer">5</div>
             </div>
@@ -217,14 +218,23 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
+        console.log("Page loaded, initializing...");
         window.addEventListener('load', () => {
+            console.log("Window load event fired");
             const gridCanvas = document.getElementById('grid');
+            const loadingMessage = document.getElementById('loading-message');
+            const startButton = document.getElementById('start-button');
+            const container = document.querySelector('.container');
             if (!gridCanvas) {
-                console.error("Game canvas not found! Wrong page loaded.");
-                const errorDiv = document.getElementById('error-message');
-                errorDiv.textContent = "Error: Game failed to load. Please refresh or check your connection.";
-                errorDiv.style.display = 'block';
+                console.error("Grid canvas not found!");
+                document.getElementById('error-message').textContent = "Error: Game canvas not loaded. Please refresh.";
+                document.getElementById('error-message').style.display = 'block';
+                loadingMessage.style.display = 'none';
+                return;
             }
+            console.log("Grid canvas found, showing start button");
+            loadingMessage.style.display = 'none';
+            startButton.style.display = 'block';
         });
 
         let animationFrameId = null;
@@ -246,6 +256,7 @@
         confettiCanvas.height = window.innerHeight;
 
         function createConfetti() {
+            console.log("Creating confetti");
             const particles = [];
             const gridCanvas = document.getElementById('grid');
             const gridRect = gridCanvas.getBoundingClientRect();
@@ -312,7 +323,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -330,6 +341,26 @@
             const particles = createConfetti();
             animateConfetti(particles);
         };
+
+        function drawPlaceholderGrid() {
+            console.log("Drawing placeholder grid");
+            const gridCanvas = document.getElementById('grid');
+            const gridCtx = gridCanvas.getContext('2d');
+            gridCtx.clearRect(0, 0, 350, 350);
+            const cellSize = 70;
+            for (let i = 0; i < 25; i++) {
+                const x = (i % 5) * cellSize;
+                const y = (i // 5) * cellSize;
+                gridCtx.strokeStyle = '#00ff00';
+                gridCtx.lineWidth = 3;
+                gridCtx.strokeRect(x, y, cellSize, cellSize);
+                gridCtx.fillStyle = '#ccffcc';
+                gridCtx.font = '30px Bebas Neue';
+                gridCtx.textAlign = 'center';
+                const coord = String.fromCharCode(65 + (i // 5)) + (i % 5 + 1);
+                gridCtx.fillText(coord, x + cellSize/2, y + cellSize/2 + 10);
+            }
+        }
     </script>
     <script type="py" config='{"packages": ["requests"]}'>
 import json
@@ -338,6 +369,8 @@ from js import EventSource, fetch, console, document, window, Audio, setTimeout,
 from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
+
+console.log("PyScript loaded, starting Python initialization...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
@@ -380,6 +413,7 @@ win_audio2 = None
 try:
     win_audio = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3?t={int(time.time())}')
     win_audio2 = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3?t={int(time.time())}')
+    console.log("Audio preloaded successfully")
 except Exception as e:
     console.log(f"Failed to preload audio: {str(e)}")
 
@@ -724,7 +758,7 @@ async def update_state(event_data):
         draw_side_piece()
         update_leaderboard()
 
-        event_type = event_data.get('type', 'unknown')
+        event_type = event_data.getRm('type', 'unknown')
         console.log(f"Event type: {event_type}")
         if event_type == 'win':
             winner = event_data['event'].get('winner', 'Unknown')
@@ -802,6 +836,12 @@ def start_game(event=None):
 
 document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
 document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
+
+# Draw placeholder grid immediately
+try:
+    window.drawPlaceholderGrid()
+except Exception as e:
+    console.log(f"Error drawing placeholder grid: {str(e)}")
     </script>
 </body>
 </html>
