@@ -426,8 +426,8 @@ is_initial_render = True
 win_audio = None
 win_audio2 = None
 try:
-    win_audio = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3?t={int(time.time())}')
-    win_audio2 = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3?t={int(time.time())}')
+    win_audio = Audio.new('/static/assets/win_sound.mp3')
+    win_audio2 = Audio.new('/static/assets/win_sound2.mp3')
     console.log("Audio preloaded successfully")
 except Exception as e:
     console.log(f"Failed to preload audio: {str(e)}")
@@ -764,8 +764,8 @@ async def update_state(event_data):
             timer_element = document.getElementById('cooldown-timer')
             timer_element.textContent = f"{round(timer_value)}"
 
-        new_image_url = f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{state["current_image"]}?t={int(time.time())}'
-        if state['current_image'] != puzzle_img_url.split('?')[0].split('/')[-1]:
+        new_image_url = f'/static/assets/{state["current_image"]}'
+        if state['current_image'] != puzzle_img_url.split('/')[-1]:
             console.log(f"Updating image to: {new_image_url}")
             await update_image(new_image_url)
 
@@ -801,7 +801,7 @@ async def init():
             "timestamp": time.time()
         }
         await update_state(event_data)
-        await update_image(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{data["current_image"]}?t={int(time.time())}')
+        await update_image(f'/static/assets/{data["current_image"]}')
         draw_grid()
         draw_side_piece()
         update_leaderboard()
