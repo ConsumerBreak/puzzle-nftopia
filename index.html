@@ -7,17 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="https://pyscript.net/releases/2024.12.1/core.js" type="module" onerror="loadPyScriptFallback()"></script>
-    <script>
-        function loadPyScriptFallback() {
-            console.log("Primary PyScript CDN failed, attempting fallback...");
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/pyscript@2024.12.1/dist/core.js';
-            script.type = 'module';
-            script.onerror = () => console.error("PyScript fallback CDN also failed!");
-            document.head.appendChild(script);
-        }
-    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/pyscript@2024.12.1/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -227,7 +217,6 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        // Client-side diagnostics
         window.addEventListener('load', () => {
             const gridCanvas = document.getElementById('grid');
             if (!gridCanvas) {
@@ -238,7 +227,6 @@
             }
         });
 
-        // Pause animations when tab is inactive
         let animationFrameId = null;
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -249,7 +237,6 @@
                 }
             } else {
                 console.log("Tab visible, resuming animations");
-                // Resume animations in update_cooldown_timer
             }
         });
 
@@ -265,9 +252,7 @@
             const centerX = gridRect.left + 175;
             const centerY = gridRect.top + 175;
 
-            console.log(`Confetti center: (${centerX}, ${centerY})`);
-
-            for (let i = 0; i < 30; i++) {
+            for (let i = 0; i < 20; i++) {
                 const shapeType = Math.random();
                 let shape;
                 if (shapeType < 0.4) shape = 'circle';
@@ -312,7 +297,7 @@
                 p.vy += 0.2;
                 p.vx *= 0.98;
                 p.vy *= 0.98;
-                p.opacity -= 0.005;
+                p.opacity -= 0.01;
                 p.rotation += p.rotationSpeed;
 
                 if (p.y > window.innerHeight || p.x < 0 || p.x > window.innerWidth || p.opacity <= 0) return;
@@ -327,7 +312,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    confettiCtx.rotate(p.rotation * Math.PI / 180);
+                    ctx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -389,24 +374,22 @@ puzzle_img_url = ''
 last_drawn_state = {'pieces': {}, 'guesses': {}}
 is_initial_render = True
 
-# Preload audio with fallback
+# Preload audio
 win_audio = None
 win_audio2 = None
 try:
-    win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3')
-    win_audio.preload = 'auto'
-    win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
-    win_audio2.preload = 'auto'
+    win_audio = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3?t={int(time.time())}')
+    win_audio2 = Audio.new(f'https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3?t={int(time.time())}')
 except Exception as e:
     console.log(f"Failed to preload audio: {str(e)}")
 
-# Cooldown timer state
+# Cooldown timer
 cooldown_duration = 5
 last_timer_update = time.time()
 timer_value = cooldown_duration
 animation_frame_id = None
 
-# Debouncing state
+# Debouncing
 last_processed_timestamp = 0
 
 # Image loading
@@ -634,8 +617,7 @@ def play_win_sound(is_complete):
         audio = win_audio2 if is_complete else win_audio
         if audio:
             audio.currentTime = 0
-            promise = audio.play()
-            promise.catch(lambda e: console.log(f"Error playing sound: {str(e)}"))
+            audio.play()
     except Exception as e:
         console.log(f"Exception in play_win_sound: {str(e)}")
 
@@ -680,7 +662,7 @@ def update_cooldown_timer(timestamp=None):
     global last_timer_update, timer_value, cooldown_duration, animation_frame_id
     try:
         if document.hidden:
-            return  # Skip updates if tab is inactive
+            return
         now = time.time()
         elapsed = now - last_timer_update
         timer_value -= elapsed
@@ -785,47 +767,29 @@ async def init():
         document.getElementById('error-message').style.display = 'block'
 
 async def listen_sse():
-    max_retries = 5
-    base_delay = 2
-    attempt = 0
+    try:
+        console.log("Connecting to SSE stream...")
+        es = EventSource.new('/events')
+        def on_message(event):
+            try:
+                data = json.loads(event.data)
+                console.log(f"SSE event received: {json.dumps(data)}")
+                event_data = {
+                    "type": data.get('type', 'unknown'),
+                    "state": data.get('state', {}),
+                    "event": data.get('event', {}),
+                    "timestamp": data.get('timestamp', time.time())
+                }
+                asyncio.ensure_future(update_state(event_data))
+            except Exception as e:
+                console.log(f"Error processing SSE event: {str(e)}")
 
-    while attempt < max_retries:
-        try:
-            console.log("Connecting to SSE stream...")
-            es = EventSource.new('/events')
-            def on_message(event):
-                try:
-                    data = json.loads(event.data)
-                    console.log(f"SSE event received: {json.dumps(data)}")
-                    event_data = {
-                        "type": data.get('type', 'unknown'),
-                        "state": data.get('state', {}),
-                        "event": data.get('event', {}),
-                        "timestamp": data.get('timestamp', time.time())
-                    }
-                    asyncio.ensure_future(update_state(event_data))
-                except Exception as e:
-                    console.log(f"Error processing SSE event: {str(e)}")
-
-            es.onmessage = create_proxy(on_message)
-            es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
-
-            while True:
-                await asyncio.sleep(3)
-                if es.readyState == 2:
-                    console.log("SSE connection closed, reconnecting...")
-                    break
-            attempt = 0
-        except Exception as e:
-            attempt += 1
-            delay = base_delay * (2 ** attempt)
-            console.log(f"SSE error: {str(e)}, reconnecting in {delay}s (attempt {attempt}/{max_retries})")
-            await asyncio.sleep(delay)
-        if attempt >= max_retries:
-            console.log("Max SSE retries reached, stopping reconnection attempts")
-            document.getElementById('error-message').textContent = "Lost connection to server. Please refresh.";
-            document.getElementById('error-message').style.display = 'block'
-            break
+        es.onmessage = create_proxy(on_message)
+        es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
+    except Exception as e:
+        console.log(f"SSE error: {str(e)}, retrying in 5s")
+        await asyncio.sleep(5)
+        asyncio.ensure_future(listen_sse())
 
 def start_game(event=None):
     console.log("Starting game...")
