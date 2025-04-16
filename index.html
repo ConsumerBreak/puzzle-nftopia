@@ -3,8 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <title>Puzzle Break</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script defer src="https://pyscript.net/releases/2024.12.1/core.js" type="module"></script>
+    <script defer src="https://pyscript.net/releases/2024.12.1/core.js" type="module" onerror="loadPyScriptFallback()"></script>
+    <script>
+        function loadPyScriptFallback() {
+            console.log("Primary PyScript CDN failed, attempting fallback...");
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/pyscript@2024.12.1/dist/core.js';
+            script.type = 'module';
+            script.onerror = () => console.error("PyScript fallback CDN also failed!");
+            document.head.appendChild(script);
+        }
+    </script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -150,6 +163,19 @@
             background: #ffd700;
             color: #000;
         }
+        #error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1002;
+            display: none;
+            text-align: center;
+        }
         @keyframes winPop {
             0% { transform: translate(-50%, -50%) scale(0) rotate(-15deg); opacity: 0; }
             70% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
@@ -199,7 +225,34 @@
     </div>
     <div id="win-announcement"></div>
     <canvas id="confetti-canvas"></canvas>
+    <div id="error-message"></div>
     <script>
+        // Client-side diagnostics
+        window.addEventListener('load', () => {
+            const gridCanvas = document.getElementById('grid');
+            if (!gridCanvas) {
+                console.error("Game canvas not found! Wrong page loaded.");
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = "Error: Game failed to load. Please refresh or check your connection.";
+                errorDiv.style.display = 'block';
+            }
+        });
+
+        // Pause animations when tab is inactive
+        let animationFrameId = null;
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log("Tab hidden, pausing animations");
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            } else {
+                console.log("Tab visible, resuming animations");
+                // Resume animations in update_cooldown_timer
+            }
+        });
+
         const confettiCanvas = document.getElementById('confetti-canvas');
         const confettiCtx = confettiCanvas.getContext('2d');
         confettiCanvas.width = window.innerWidth;
@@ -214,7 +267,7 @@
 
             console.log(`Confetti center: (${centerX}, ${centerY})`);
 
-            for (let i = 0; i < 50; i++) { // Reduced particles for performance
+            for (let i = 0; i < 30; i++) {
                 const shapeType = Math.random();
                 let shape;
                 if (shapeType < 0.4) shape = 'circle';
@@ -283,7 +336,7 @@
             });
 
             const remainingParticles = particles.filter(p => p.y <= window.innerHeight && p.x >= 0 && p.x <= window.innerWidth && p.opacity > 0);
-            if (remainingParticles.length > 0) {
+            if (remainingParticles.length > 0 && !document.hidden) {
                 requestAnimationFrame(() => animateConfetti(remainingParticles));
             }
         }
@@ -296,7 +349,7 @@
     <script type="py" config='{"packages": ["requests"]}'>
 import json
 import asyncio
-from js import EventSource, fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame
+from js import EventSource, fetch, console, document, window, Audio, setTimeout, Image, requestAnimationFrame, cancelAnimationFrame
 from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
@@ -326,11 +379,11 @@ state = {
     'maxPrize': 50
 }
 
-# Grid coordinates (A1-E5 mapping)
+# Grid coordinates
 grid_coords = [f"{letter}{number}" for letter in "ABCDE" for number in range(1, 6)]
 coord_to_index = {coord: i for i, coord in enumerate(grid_coords)}
 
-# Global variables for image loading and rendering state
+# Global variables
 puzzle_img = None
 puzzle_img_url = ''
 last_drawn_state = {'pieces': {}, 'guesses': {}}
@@ -351,11 +404,12 @@ except Exception as e:
 cooldown_duration = 5
 last_timer_update = time.time()
 timer_value = cooldown_duration
+animation_frame_id = None
 
 # Debouncing state
 last_processed_timestamp = 0
 
-# JavaScript function to load image and call Python callback
+# Image loading
 def load_image_js(url, callback):
     img = Image.new()
     img.src = url
@@ -363,7 +417,6 @@ def load_image_js(url, callback):
     img.onerror = create_proxy(lambda _: callback(None))
     return img
 
-# Python function to load image with fallback
 async def load_image(url):
     global puzzle_img
     try:
@@ -383,7 +436,6 @@ async def load_image(url):
         return result
     except Exception as e:
         console.log(f"Exception in load_image: {str(e)}")
-        # Fallback to placeholder image
         placeholder_url = 'https://via.placeholder.com/2000x2000.png?text=Image+Failed'
         try:
             future = loop.create_future()
@@ -404,7 +456,6 @@ async def load_image(url):
             ctx.fillText('Image Failed', 1000, 1000)
             return placeholder
 
-# Update image and redraw
 async def update_image(url):
     global puzzle_img, puzzle_img_url
     if url != puzzle_img_url:
@@ -626,8 +677,10 @@ def test_win_animation(event=None):
     trigger_win_animation(state['pieceId'], "TestUser", 50, False)
 
 def update_cooldown_timer(timestamp=None):
-    global last_timer_update, timer_value, cooldown_duration
+    global last_timer_update, timer_value, cooldown_duration, animation_frame_id
     try:
+        if document.hidden:
+            return  # Skip updates if tab is inactive
         now = time.time()
         elapsed = now - last_timer_update
         timer_value -= elapsed
@@ -639,7 +692,7 @@ def update_cooldown_timer(timestamp=None):
         timer_element = document.getElementById('cooldown-timer')
         timer_element.textContent = f"{round(timer_value)}"
 
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
+        animation_frame_id = requestAnimationFrame(create_proxy(update_cooldown_timer))
     except Exception as e:
         console.log(f"Error in update_cooldown_timer: {str(e)}")
 
@@ -703,12 +756,11 @@ async def update_state(event_data):
     except Exception as e:
         console.log(f"Error in update_state: {str(e)}")
 
-# Initial state fetch
 async def init():
     global is_initial_render
     try:
         console.log("Fetching initial game state...")
-        resp = await pyfetch('/game_state')
+        resp = await pyfetch('/game_state', timeout=10)
         data = await resp.json()
         console.log(f"Initial game state: {json.dumps(data)}")
         event_data = {
@@ -723,13 +775,15 @@ async def init():
         draw_side_piece()
         update_leaderboard()
         console.log("Starting cooldown timer...")
-        requestAnimationFrame(create_proxy(update_cooldown_timer))
+        if not document.hidden:
+            requestAnimationFrame(create_proxy(update_cooldown_timer))
     except Exception as e:
         console.log(f"Init error: {str(e)}")
         draw_grid()
         draw_side_piece()
+        document.getElementById('error-message').textContent = "Failed to initialize game. Please refresh.";
+        document.getElementById('error-message').style.display = 'block'
 
-# SSE function with exponential backoff
 async def listen_sse():
     max_retries = 5
     base_delay = 2
@@ -761,7 +815,7 @@ async def listen_sse():
                 if es.readyState == 2:
                     console.log("SSE connection closed, reconnecting...")
                     break
-            attempt = 0  # Reset attempt count on successful connection
+            attempt = 0
         except Exception as e:
             attempt += 1
             delay = base_delay * (2 ** attempt)
@@ -769,14 +823,16 @@ async def listen_sse():
             await asyncio.sleep(delay)
         if attempt >= max_retries:
             console.log("Max SSE retries reached, stopping reconnection attempts")
+            document.getElementById('error-message').textContent = "Lost connection to server. Please refresh.";
+            document.getElementById('error-message').style.display = 'block'
             break
 
-# Start the game after user interaction
 def start_game(event=None):
     console.log("Starting game...")
     document.getElementById('start-button').style.display = 'none'
     document.getElementById('test-win-button').style.display = 'block'
     document.querySelector('.container').style.display = 'flex'
+    document.getElementById('error-message').style.display = 'none'
     asyncio.ensure_future(init())
     asyncio.ensure_future(listen_sse())
 
