@@ -496,7 +496,7 @@ def get_game_state():
 def sse():
     def stream():
         last_ping_time = 0
-        PING_INTERVAL = 3  # Reduced from 5 seconds
+        PING_INTERVAL = 5  # Send a ping every 5 seconds if no events
 
         while True:
             try:
