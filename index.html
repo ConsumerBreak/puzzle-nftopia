@@ -236,6 +236,9 @@
             console.log("Grid canvas found, showing start button");
             loadingMessage.style.display = 'none';
             startButton.style.display = 'block';
+
+            // Draw placeholder grid after DOM is loaded
+            drawPlaceholderGrid();
         });
 
         let animationFrameId = null;
@@ -837,12 +840,6 @@ def start_game(event=None):
 
 document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
 document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
-
-# Draw placeholder grid immediately
-try:
-    window.drawPlaceholderGrid()
-except Exception as e:
-    console.log(f"Error drawing placeholder grid: {str(e)}")
     </script>
 </body>
 </html>
