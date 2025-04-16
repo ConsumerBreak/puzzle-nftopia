@@ -3,6 +3,7 @@ import random
 import json
 import aiohttp
 from flask import Flask, Response, send_file
+from flask_cors import CORS
 from twitchio.ext import commands
 import queue
 import asyncio
@@ -24,16 +25,17 @@ logger = logging.getLogger(__name__)
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes to handle cross-origin requests
 
-# Content Security Policy header
+# Content Security Policy header (updated to include latest PyScript and fallback CDN)
 CSP_HEADER = (
-    "default-src 'self' https://cdn.glitch.global https://pyscript.net; "
+    "default-src 'self' https://cdn.glitch.global https://pyscript.net https://cdn.jsdelivr.net; "
     "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
-    "img-src 'self' https://cdn.glitch.global data:; "
+    "img-src 'self' https://cdn.glitch.global https://via.placeholder.com data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org blob:;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://pyscript.net https://*.render.com wss://*.render.com blob:;"
 )
 
 # Check for required environment variables
@@ -92,10 +94,8 @@ class MessageDeduplicator:
 
     def has_seen(self, message_id):
         current_time = time.time()
-        # Clean up old entries
         while self.seen_messages and current_time - self.seen_messages[0][1] > self.window_seconds:
             self.seen_messages.popleft()
-        # Check if message_id is in the cache
         for msg_id, _ in self.seen_messages:
             if msg_id == message_id:
                 return True
@@ -106,7 +106,7 @@ class MessageDeduplicator:
 
 message_deduplicator = MessageDeduplicator(window_seconds=5, max_size=1000)
 
-# Command deduplication cache (additional layer)
+# Command deduplication cache
 class CommandDeduplicator:
     def __init__(self, window_seconds=5, max_size=1000):
         self.seen_commands = deque(maxlen=max_size)
@@ -163,9 +163,9 @@ class GameState:
         self.piece_id = 0
         self.event_queue = queue.Queue()
         self.last_guess_times = {}
-        self.cooldown_seconds = 60  # Default from Replit
-        self.min_prize = 1  # Default from Replit
-        self.max_prize = 50  # Default from Replit
+        self.cooldown_seconds = 60
+        self.min_prize = 1
+        self.max_prize = 50
 
     @classmethod
     async def create(cls, bot):
@@ -175,7 +175,6 @@ class GameState:
         return instance
 
     async def initialize_images(self):
-        """Dynamically determine available puzzle images by attempting to fetch them."""
         self.images = []
         i = 1
         async with aiohttp.ClientSession() as session:
@@ -183,7 +182,7 @@ class GameState:
                 image_name = f"puzzle{i:02d}_00000.png"
                 url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
                 try:
-                    async with session.head(url) as response:
+                    async with session.head(url, timeout=5) as response:
                         logger.info(f"Checking image {image_name}: HTTP Status {response.status}")
                         if response.status == 200:
                             self.images.append(image_name)
@@ -194,6 +193,8 @@ class GameState:
                             break
                 except Exception as e:
                     logger.error(f"Error checking puzzle image {image_name}: {str(e)}")
+                    # Fallback to placeholder if CDN fails
+                    self.images.append("placeholder.png")
                     break
         if not self.images:
             logger.warning("No puzzle images found, using a placeholder")
@@ -490,13 +491,15 @@ def index():
 
 @app.route('/game_state')
 def get_game_state():
-    return game_state.get_state()
+    response = Response(json.dumps(game_state.get_state()), mimetype='application/json')
+    response.headers['Content-Security-Policy'] = CSP_HEADER
+    return response
 
 @app.route('/events')
 def sse():
     def stream():
         last_ping_time = 0
-        PING_INTERVAL = 5  # Send a ping every 5 seconds if no events
+        PING_INTERVAL = 5
 
         while True:
             try:
@@ -531,11 +534,17 @@ def sse():
     response = Response(stream(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['Connection'] = 'keep-alive'
+    response.headers['Content-Security-Policy'] = CSP_HEADER
     return response
 
 @app.route('/health')
 def health_check():
-    return "OK", 200
+    try:
+        # Simple check to ensure the app is responsive
+        return "OK", 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return "ERROR", 500
 
 # Test Twitch token validity
 async def test_twitch_token():
@@ -604,30 +613,23 @@ async def main():
 
     @bot.event()
     async def event_message(message):
-        # Skip system messages (where author is None)
         if message.author is None:
             logger.debug(f"Skipping system message: {message.content}")
             return
 
-        # Use message ID for deduplication
         message_id = message.tags.get('id') if message.tags else None
         if not message_id:
-            # Fallback if message ID is missing
             message_id = f"{message.timestamp}_{message.content}_{message.author.name if message.author else 'None'}"
             logger.warning(f"Message ID missing, using fallback ID: {message_id}")
 
-        # Log message details for debugging
         logger.debug(f"Received message: ID={message_id}, Author={message.author.name if message.author else 'None'}, Content={message.content}, Tags={message.tags}")
 
-        # Check if we've already processed this message
         if message_deduplicator.has_seen(message_id):
             logger.debug(f"Skipping duplicate message: ID={message_id}, Content={message.content}")
             return
         
-        # Add message to deduplication cache
         message_deduplicator.add(message_id)
 
-        # Skip messages from the bot itself
         if message.author.name.lower() == bot.nick.lower():
             logger.debug(f"Skipping bot's own message: ID={message_id}, Content={message.content}")
             return
@@ -638,12 +640,10 @@ async def main():
     @bot.command(name='g', aliases=['G'])
     async def guess_command(ctx):
         try:
-            # Rate limit check
             if not global_rate_limiter.consume():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
-            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
             command_id = f"guess_{message_id}"
             if command_deduplicator.has_seen(command_id):
@@ -669,7 +669,6 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
-            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
             command_id = f"cool_{message_id}"
             if command_deduplicator.has_seen(command_id):
@@ -699,7 +698,6 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
-            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
             command_id = f"win_{message_id}"
             if command_deduplicator.has_seen(command_id):
@@ -729,7 +727,6 @@ async def main():
                 logger.info("Global rate limit exceeded, ignoring command")
                 return
 
-            # Command-level deduplication
             message_id = ctx.message.tags.get('id') if ctx.message.tags else f"{ctx.message.timestamp}_{ctx.message.content}"
             command_id = f"testwin_{message_id}"
             if command_deduplicator.has_seen(command_id):
