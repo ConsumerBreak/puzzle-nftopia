@@ -46,7 +46,7 @@ last_event_timestamp = 0
 
 # Google Sheets Setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SPREADSHEET_ID = '1uH2Lh_0s19f1iTjZ8w7V9X1qAbrU66gA7zknDy6sLE'
+SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'  # Updated ID
 # Load credentials from environment variable
 credentials_json = os.getenv('GOOGLE_CREDENTIALS')
 if not credentials_json:
