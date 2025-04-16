@@ -47,7 +47,12 @@ last_event_timestamp = 0
 # Google Sheets Setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '1uH2Lh_0s19f1iTjZ8w7V9X1qAbrU66gA7zknDy6sLE'
-creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+# Load credentials from environment variable
+credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+if not credentials_json:
+    raise ValueError("GOOGLE_CREDENTIALS environment variable not set")
+credentials_dict = json.loads(credentials_json)
+creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
