@@ -17,7 +17,9 @@ app = Flask(__name__)
 CORS(app)
 
 # Twitch Bot Configuration
-BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN', 'your-bot-token-here')
+BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
+if not BOT_TOKEN:
+    raise ValueError("TWITCH_BOT_TOKEN environment variable not set")
 CHANNELS = ['nftopia']
 bot = None
 
@@ -47,7 +49,6 @@ last_event_timestamp = 0
 # Google Sheets Setup
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
-# Load credentials from environment variable
 credentials_json = os.getenv('GOOGLE_CREDENTIALS')
 if not credentials_json:
     raise ValueError("GOOGLE_CREDENTIALS environment variable not set")
@@ -67,7 +68,7 @@ def init_puzzle_images():
         response = requests.head(url)
         app.logger.info(f"Checking image {image_name}: HTTP Status {response.status_code}")
         if response.status_code == 200:
-            puzzle_images.append(image_name)
+            puzzle_images.append(url)  # Store full URL
             app.logger.info(f"Found puzzle image: {image_name}")
         else:
             app.logger.info(f"No more puzzle images found after {image_name}, stopping at {len(puzzle_images)} puzzles")
@@ -100,7 +101,6 @@ def init_game():
     expected_col = game_state['natural_section'] % 5
     expected_coord = f"{chr(65 + expected_row)}{expected_col + 1}"
     app.logger.info(f"Set initial piece: current_piece={game_state['current_piece']}, natural_section={game_state['natural_section']}, expected_coord={expected_coord}")
-    app.logger.info(f"Before setting current_image: current_image={game_state['current_image']}, image_index={image_index}")
     image_index = (image_index + 1) % len(puzzle_images)
     game_state['current_image'] = puzzle_images[image_index]
     app.logger.info(f"Selected puzzle image: {game_state['current_image']} (index {image_index + 1})")
@@ -237,19 +237,17 @@ def events():
 # Start Twitch Bot
 def run_bot():
     global bot
-    app.logger.info("Twitch bot task created")
-    app.logger.info("Starting Twitch bot delay...")
-    time.sleep(5)
-    app.logger.info("Twitch bot delay completed, attempting to start bot...")
-    
-    # Create a new event loop for this thread
+    app.logger.info("Starting Twitch bot...")
+    time.sleep(5)  # Delay to ensure Flask is up
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     bot = Bot()
-    bot.run()
-    # Close the loop after the bot is done (though it typically runs indefinitely)
-    loop.close()
+    try:
+        bot.run()
+    except Exception as e:
+        app.logger.error(f"Twitch bot failed: {str(e)}")
+    finally:
+        loop.close()
 
 if __name__ == '__main__':
     app.logger.info("Main script starting")
