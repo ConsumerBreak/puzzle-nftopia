@@ -25,20 +25,20 @@ logger = logging.getLogger(__name__)
 logging.getLogger('twitchio').setLevel(logging.DEBUG)
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for cross-origin requests
+CORS(app)
 
 # Content Security Policy
 CSP_HEADER = (
-    "default-src 'self' https://cdn.glitch.global https://pyscript.net https://cdn.jsdelivr.net; "
-    "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+    "default-src 'self' https://cdn.glitch.global https://cdn.jsdelivr.net; "
+    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
     "font-src https://fonts.gstatic.com; "
     "img-src 'self' https://cdn.glitch.global https://via.placeholder.com data:; "
     "media-src https://cdn.glitch.global; "
-    "connect-src 'self' https://cdn.jsdelivr.net https://pyscript.net https://*.render.com wss://*.render.com blob:;"
+    "connect-src 'self' https://cdn.jsdelivr.net https://*.render.com wss://*.render.com blob:;"
 )
 
-# Track app start time for uptime
+# Track app start time
 APP_START_TIME = time.time()
 
 # Check environment variables
@@ -61,7 +61,7 @@ SHEET_NAME = 'Sheet1'
 # Leaderboard cache
 leaderboard_cache = None
 leaderboard_cache_timestamp = None
-LEADERBOARD_CACHE_DURATION = 30  # Cache for 30 seconds
+LEADERBOARD_CACHE_DURATION = 30
 cache_lock = Lock()
 
 # Rate limiter
@@ -183,7 +183,7 @@ class GameState:
         async with aiohttp.ClientSession() as session:
             while True:
                 image_name = f"puzzle{i:02d}_00000.png"
-                url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
+                url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}?t={int(time.time())}"
                 try:
                     async with session.head(url, timeout=5) as response:
                         logger.info(f"Checking image {image_name}: HTTP Status {response.status}")
@@ -501,33 +501,26 @@ def get_game_state():
 @app.route('/events')
 def sse():
     def stream():
-        last_ping_time = 0
-        PING_INTERVAL = 5
+        last_event_time = time.time()
+        PING_INTERVAL = 10
         while True:
             try:
                 try:
-                    event = game_state.event_queue.get(timeout=PING_INTERVAL)
+                    event = game_state.event_queue.get(timeout=1)
                     logger.info(f"Sending SSE event to client: {json.dumps(event)}")
                     yield f"data: {json.dumps(event)}\n\n"
-                    last_ping_time = time.time()
-                    continue
+                    last_event_time = time.time()
                 except queue.Empty:
                     current_time = time.time()
-                    if current_time - last_ping_time >= PING_INTERVAL:
+                    if current_time - last_event_time >= PING_INTERVAL:
                         event = {
                             'type': 'ping',
-                            'state': game_state.get_state(),
-                            'event': {},
                             'timestamp': current_time
                         }
                         logger.info(f"Sending SSE ping event: {json.dumps(event)}")
                         yield f"data: {json.dumps(event)}\n\n"
-                        last_ping_time = current_time
+                        last_event_time = current_time
                     time.sleep(0.1)
-                    continue
-            except (BrokenPipeError, ConnectionError, OSError) as e:
-                logger.info(f"SSE client disconnected: {str(e)}")
-                break
             except Exception as e:
                 logger.error(f"SSE stream error: {str(e)}")
                 break
@@ -681,7 +674,7 @@ async def main():
             logger.debug(f"Processing guess command: ID={command_id}, Content={ctx.message.content}")
 
             guess = ctx.message.content.split(' ')[1] if len(ctx.message.content.split(' ')) > 1 else None
-            if guess and guess.upper() in [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 6)]:
+            if guess and guess.upper() in [f"{chr        (65+i)}{j}" for i in range(5) for j in range(1, 6)]:
                 await game_state.guess(guess.upper(), ctx.author.name, ctx)
             else:
                 await ctx.send("Invalid coordinate! Use format like A1, B3, etc.")
