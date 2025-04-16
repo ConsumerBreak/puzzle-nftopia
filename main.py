@@ -16,6 +16,9 @@ from twitchio.ext import commands
 app = Flask(__name__)
 CORS(app)
 
+# Version Marker
+app.logger.info("Running main.py version 2025-04-16-v2")
+
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
 
@@ -244,8 +247,8 @@ def index():
         response = make_response(render_template('index.html'))
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
-            "style-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
+            "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://unpkg.com 'unsafe-eval' 'unsafe-inline'; "
+            "style-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
             "connect-src 'self' ws: wss:; "
             "img-src 'self' https://cdn.glitch.global;"
