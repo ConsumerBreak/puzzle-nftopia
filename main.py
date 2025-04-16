@@ -239,9 +239,21 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    response = make_response(render_template('index.html'))
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; style-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' https://cdn.glitch.global;"
-    return response
+    app.logger.info("Rendering index.html")
+    try:
+        response = make_response(render_template('index.html'))
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+            "style-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self' ws: wss:; "
+            "img-src 'self' https://cdn.glitch.global;"
+        )
+        return response
+    except Exception as e:
+        app.logger.error(f"Failed to render index.html: {str(e)}")
+        return "Error rendering page", 500
 
 @app.route('/game_state')
 def get_game_state():
