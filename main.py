@@ -18,8 +18,9 @@ CORS(app)
 
 # Twitch Bot Configuration
 BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
+app.logger.info(f"TWITCH_BOT_TOKEN is set: {'True' if BOT_TOKEN else 'False'}")
 if not BOT_TOKEN:
-    raise ValueError("TWITCH_BOT_TOKEN environment variable not set")
+    app.logger.warning("TWITCH_BOT_TOKEN not set. Bot functionality will be disabled.")
 CHANNELS = ['nftopia']
 bot = None
 
@@ -68,7 +69,7 @@ def init_puzzle_images():
         response = requests.head(url)
         app.logger.info(f"Checking image {image_name}: HTTP Status {response.status_code}")
         if response.status_code == 200:
-            puzzle_images.append(url)  # Store full URL
+            puzzle_images.append(url)
             app.logger.info(f"Found puzzle image: {image_name}")
         else:
             app.logger.info(f"No more puzzle images found after {image_name}, stopping at {len(puzzle_images)} puzzles")
@@ -237,8 +238,11 @@ def events():
 # Start Twitch Bot
 def run_bot():
     global bot
+    if not BOT_TOKEN:
+        app.logger.error("Cannot start Twitch bot: TWITCH_BOT_TOKEN is not set")
+        return
     app.logger.info("Starting Twitch bot...")
-    time.sleep(5)  # Delay to ensure Flask is up
+    time.sleep(5)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     bot = Bot()
