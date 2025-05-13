@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-05-15-v1")
+app.logger.info("Running main.py version 2025-05-16-v1")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
@@ -28,7 +28,6 @@ def apply_csp(response):
         "default-src 'self' https://cdn.jsdelivr.net; "
         "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
-        "font-src 'self' https://fonts.gstatic.com; "
         "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; "
         "img-src 'self' https://gateway.pinata.cloud data:; "
         "worker-src 'self' blob:; "
@@ -39,7 +38,8 @@ def apply_csp(response):
     response.headers['Content-Security-Policy'] = csp
     response.headers.pop('X-Content-Security-Policy', None)
     response.headers.pop('X-WebKit-CSP', None)
-    app.logger.info(f"Response headers: {response.headers}")
+    app.logger.info(f"Applied CSP: {csp}")
+    app.logger.info(f"Final response headers: {dict(response.headers)}")
     return response
 
 # Twitch Bot Configuration
@@ -266,7 +266,7 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-05-15-v1")
+    app.logger.info("Rendering index.html version 2025-05-16-v1")
     try:
         response = make_response(render_template('index.html'))
         return response
