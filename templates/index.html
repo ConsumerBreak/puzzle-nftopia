@@ -6,10 +6,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <!-- index.html version 2025-05-14-v2 -->
+    <!-- index.html version 2025-05-15-v1 -->
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/releases/2024.11.2/core.css">
-    <script id="pyscript-js" defer src="https://pyscript.net/releases/2024.11.2/core.js" type="module"></script>
+    <link id="pyscript-css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.css">
+    <script id="pyscript-js" defer src="https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -229,15 +229,15 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        console.log("Page loaded, initializing JavaScript (version 2025-05-14-v2)...");
+        console.log("Page loaded, initializing JavaScript (version 2025-05-15-v1)...");
 
         // PyScript fallback
         const pyscriptJs = document.getElementById('pyscript-js');
         pyscriptJs.onerror = () => {
-            console.log("pyscript.net failed, trying jsdelivr.net...");
-            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.js";
+            console.log("jsdelivr.net failed, trying pyscript.net...");
+            pyscriptJs.src = "https://pyscript.net/releases/2024.11.2/core.js";
             const pyscriptCss = document.getElementById('pyscript-css');
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.css";
+            pyscriptCss.href = "https://pyscript.net/releases/2024.11.2/core.css";
             setTimeout(() => {
                 if (!window.PyScript) {
                     console.error("PyScript failed to load from both CDNs");
@@ -251,8 +251,8 @@
         // Test PyScript CSS loading
         const pyscriptCss = document.getElementById('pyscript-css');
         pyscriptCss.onerror = () => {
-            console.log("PyScript CSS failed to load, trying jsdelivr.net...");
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.css";
+            console.log("jsdelivr.net CSS failed, trying pyscript.net...");
+            pyscriptCss.href = "https://pyscript.net/releases/2024.11.2/core.css";
         };
 
         // Initialize canvas
@@ -427,7 +427,7 @@ from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
 
-console.log("PyScript loaded, starting Python initialization (version 2025-05-14-v2)...")
+console.log("PyScript loaded, starting Python initialization (version 2025-05-15-v1)...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
@@ -634,271 +634,372 @@ def draw_grid():
                             grid_ctx.fillStyle = 'white'
                             grid_ctx.font = '30px Bebas Neue'
                             grid_ctx.textAlign = 'center'
-                            grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                    else:
-                        grid_ctx.fillStyle = 'green'
-                        grid_ctx.fillRect(x, y, cell_size, cell_size)
-                        grid_ctx.fillStyle = 'white'
-                        grid_ctx.font = '30px Bebas Neue'
-                        grid_ctx.textAlign = 'center'
-                        grid_ctx.fillText("P", x + cell_size/2, y + cell_size/2 + 10)
-                elif coord in state['guesses'] and state['guesses'][coord] == 'miss':
-                    grid_ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'
-                    grid_ctx.fillRect(x, y, cell_size, cell_size)
-                    grid_ctx.fillStyle = 'red'
-                    grid_ctx.font = '40px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText('X', x + cell_size/2, y + cell_size/2 + 10)
-                else:
-                    grid_ctx.fillStyle = '#ccffcc'
-                    grid_ctx.font = '30px Bebas Neue'
-                    grid_ctx.textAlign = 'center'
-                    grid_ctx.fillText(coord, x + cell_size/2, y + cell_size/2 + 10)
+                            grid_ctx.fillText("P", x + cell_size/2, y
 
-        last_drawn_state['pieces'] = dict(state['pieces'])
-        last_drawn_state['guesses'] = dict(state['guesses'])
+System: I'm sorry, but it looks like your message was cut off. The F12 errors you provided indicate persistent issues with the Content Security Policy (CSP) blocking `unsafe-eval`, a stylesheet (`core.css`) failing to load, and Cross-Origin Read Blocking (CORB) affecting `core.css`. These are preventing PyScript from initializing, causing the "LOADING PUZZLE BREAK" issue on `https://nftopia-puzzle.onrender.com`. I'll address these based on the provided errors and the context of our previous discussions, including your IPFS CIDs, the `ConsumerBreak` channel, and the `break__bot` bot.
 
-def draw_side_piece():
-    if not side_ctx:
-        console.log("Cannot draw side piece: side_ctx is None")
+### Analysis of F12 Errors
+1. **CSP Blocking `unsafe-eval`**:
+   - **Error**: "Content Security Policy of your site blocks the use of 'eval' in JavaScript."
+   - **Cause**: The CSP in `main.py` includes `unsafe-eval` in `script-src`, but it’s not being applied correctly, possibly due to:
+     - Render.com overriding the CSP with a default policy.
+     - A misconfiguration in Flask or Hypercorn.
+     - A syntax error or incomplete CSP application.
+   - **Impact**: PyScript requires `unsafe-eval` to execute its WebAssembly and Python interpreter, so this block halts initialization.
+
+2. **Stylesheet Loading Failure**:
+   - **Error**: "This page failed to load a stylesheet from a URL" (`core.css` at `nftopia-puzzle.onrender.com/:11`).
+   - **Cause**: The PyScript stylesheet (`https://pyscript.net/releases/2024.11.2/core.css`) is blocked, likely by:
+     - CSP `style-src` missing `https://pyscript.net` or `https://cdn.jsdelivr.net`.
+     - Network issues or server misconfiguration at `pyscript.net`.
+   - **Line Reference**: Line 11 in `index.html` is the PyScript CSS link:
+     ```html
+     <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/releases/2024.11.2/core.css">
+     ```
+
+3. **CORB Blocking `core.css`**:
+   - **Error**: "Cross-Origin Read Blocking (CORB) blocked a cross-origin response" for `core.css`.
+   - **Cause**: The browser’s CORB mechanism blocks `core.css` because:
+     - The server at `pyscript.net` doesn’t send proper `Access-Control-Allow-Origin` headers.
+     - The CSP’s `connect-src` or `style-src` doesn’t allow cross-origin requests to `pyscript.net`.
+   - **Impact**: Without `core.css`, PyScript’s UI components fail, contributing to the loading issue.
+
+### Updated Strategy
+Since the previous code included `unsafe-eval` and appropriate `style-src`/`connect-src` directives but still failed, I’ll:
+1. **Force CSP Application**:
+   - Explicitly set `Content-Security-Policy` and remove any conflicting headers.
+   - Add verbose logging to confirm CSP application in Render logs.
+   - Simplify the CSP to focus on essential domains (`pyscript.net`, `cdn.jsdelivr.net`, `gateway.pinata.cloud`).
+2. **Bypass `pyscript.net` Issues**:
+   - Default to `cdn.jsdelivr.net` for PyScript’s JS and CSS to avoid CORB and loading issues with `pyscript.net`.
+   - Remove fallback logic to simplify debugging.
+3. **Test Alternative PyScript Version**:
+   - Use PyScript `2024.10.1` instead of `2024.11.2` to rule out version-specific bugs.
+4. **Maintain Existing Functionality**:
+   - Keep your IPFS CIDs for puzzle images and audio.
+   - Ensure compatibility with `ConsumerBreak` channel and `break__bot` bot.
+   - Retain Google Sheets integration and game mechanics.
+
+### Updated Code
+Below are the updated `main.py` and `index.html` files, incorporating your IPFS CIDs and addressing the CSP, stylesheet, and CORB issues. The `requirements.txt` remains unchanged.
+
+#### `main.py`
+```python
+import asyncio
+import json
+import os
+import random
+import time
+from threading import Thread
+
+import gspread
+import requests
+from flask import Flask, Response, jsonify, render_template, make_response
+from flask_cors import CORS
+from google.oauth2.service_account import Credentials
+from twitchio.ext import commands
+
+app = Flask(__name__)
+CORS(app)
+
+# Version Marker
+app.logger.info("Running main.py version 2025-05-16-v1")
+
+# Debug Environment Variables
+app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
+
+# Twitch Bot Configuration
+BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
+BOT_NICK = 'break__bot'
+app.logger.info(f"TWITCH_BOT_TOKEN is set: {'True' if BOT_TOKEN else 'False'}")
+if not BOT_TOKEN:
+    app.logger.warning("TWITCH_BOT_TOKEN not set. Bot functionality will be disabled.")
+CHANNELS = ['ConsumerBreak']
+bot = None
+
+# Game State
+game_state = {
+    'pieces': {},
+    'guesses': {},
+    'current_piece': None,
+    'natural_section': None,
+    'current_image': '',
+    'leaderboard': [],
+    'sectionMapping': {},
+    'reverse_section_mapping': {},
+    'baseMapping': {},
+    'reverseBaseMapping': {},
+    'gameId': 0,
+    'pieceId': 0,
+    'cooldownSeconds': 60,
+    'minPrize': 1,
+    'maxPrize': 50
+}
+puzzle_images = []
+image_index = 0
+event_queue = []
+last_event_timestamp = 0
+
+# Google Sheets Setup
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SPREADSHEET_ID = '1amJa8alcwRwX-JnhbPjdrAUk16VXxlKjmWwXDCFvjSU'
+sheet = None
+credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+if credentials_json:
+    try:
+        credentials_dict = json.loads(credentials_json)
+        creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+        app.logger.info("Google Sheets initialized successfully")
+    except Exception as e:
+        app.logger.error(f"Failed to initialize Google Sheets: {str(e)}")
+        sheet = None
+else:
+    app.logger.warning("GOOGLE_CREDENTIALS not set. Leaderboard functionality will be disabled.")
+
+# Initialize Puzzle Images (IPFS)
+def init_puzzle_images():
+    global puzzle_images, image_index
+    ipfs_base_url = "https://gateway.pinata.cloud/ipfs/"
+    ipfs_cids = [
+        "bafybeice6fyptk5efjq63v5pci5whoqzhn47gwpssgd5g7kowmwmeq3buq",  # puzzle01_00000.png
+        "bafybeicgmjfdclavzgt6wchopfnentwvw6c2jj7rk4jv4tbt5uoow7bmcy",  # puzzle02_00000.png
+        "bafybeib5pg5el6whrqot3ap23amm6vhzx2n3ukjuac4kvznjornzy5iapq",  # puzzle03_00000.png
+        "bafybeihyxddn2p6ymdqa6qtujbphtcg6sftnkjmgp5lxiahl2szirj56ji",  # puzzle04_00000.png
+        "bafybeidkmchhllfiyuuamyrwfnh7kqomfo6mrrqrmfxvabqk5c4uakgcia",  # puzzle05_00000.png
+        "bafybeic67y5b6iijp3tgt6twilxk2iwlh3owlgpwitq7xravdbcv7jojw4",  # puzzle06_00000.png
+        "bafybeigvfq3g6lgazhas6ahq4xt27udj35p7mgndqplldydhz5c3327rau"   # puzzle07_00000.png
+    ]
+    puzzle_images = [f"{ipfs_base_url}{cid}" for cid in ipfs_cids]
+    
+    app.logger.info(f"Initialized with {len(puzzle_images)} puzzle images: {puzzle_images}")
+    if puzzle_images:
+        game_state['current_image'] = puzzle_images[0]
+        app.logger.info(f"Set initial current_image to: {game_state['current_image']}")
+        image_index = 0
+    else:
+        app.logger.error("No puzzle images found. Game will not function correctly.")
+
+# Initialize Game
+def init_game():
+    global image_index
+    if not puzzle_images:
+        app.logger.error("No puzzle images available. Cannot initialize game.")
         return
-    side_ctx.clearRect(0, 0, 210, 210)
-    if state['natural_section'] is not None:
-        section = state['natural_section']
-        col = section % 5
-        row = section // 5
-        if puzzle_img:
-            try:
-                side_ctx.drawImage(
-                    puzzle_img,
-                    col * 400, row * 400, 400, 400,
-                    0, 0, 210, 210
-                )
-            except Exception:
-                side_ctx.fillStyle = 'yellow'
-                side_ctx.fillRect(0, 0, 210, 210)
-                side_ctx.fillStyle = 'black'
-                side_ctx.font = '30px Bebas Neue'
-                side_ctx.textAlign = 'center'
-                side_ctx.fillText(f"Piece {section}", 105, 105)
-        else:
-            side_ctx.fillStyle = 'yellow'
-            side_ctx.fillRect(0, 0, 210, 210)
-            side_ctx.fillStyle = 'black'
-            side_ctx.font = '30px Bebas Neue'
-            side_ctx.textAlign = 'center'
-            side_ctx.fillText(f"Piece {section}", 105, 105)
-        side_ctx.strokeStyle = '#ffd700'
-        side_ctx.lineWidth = 3
-        side_ctx.strokeRect(0, 0, 210, 210)
+    game_state['gameId'] += 1
+    app.logger.info(f"Initializing puzzle for game ID {game_state['gameId']}")
+    game_state['pieces'] = {}
+    game_state['guesses'] = {}
+    game_state['pieceId'] = 0
+    sections = list(range(25))
+    random.shuffle(sections)
+    game_state['sectionMapping'] = {str(i): sections[i] for i in range(25)}
+    game_state['reverse_section_mapping'] = {str(sections[i]): i for i in range(25)}
+    game_state['baseMapping'] = game_state['sectionMapping'].copy()
+    game_state['reverseBaseMapping'] = game_state['reverse_section_mapping'].copy()
+    app.logger.info(f"Section mapping created: {game_state['sectionMapping']}")
+    game_state['current_piece'] = 0
+    game_state['natural_section'] = game_state['sectionMapping']['0']
+    expected_row = game_state['natural_section'] // 5
+    expected_col = game_state['natural_section'] % 5
+    expected_coord = f"{chr(65 + expected_row)}{expected_col + 1}"
+    app.logger.info(f"Set initial piece: current_piece={game_state['current_piece']}, natural_section={game_state['natural_section']}, expected_coord={expected_coord}")
+    image_index = (image_index + 1) % len(puzzle_images)
+    game_state['current_image'] = puzzle_images[image_index]
+    app.logger.info(f"Selected puzzle image: {game_state['current_image']} (index {image_index + 1})")
+    game_state['pieceId'] += 1
+    app.logger.info(f"Puzzle initialized: game_id={game_state['gameId']}, piece_id={game_state['pieceId']}")
+    send_state_update()
 
-def update_leaderboard():
+# Load Leaderboard
+def load_leaderboard():
+    if not sheet:
+        app.logger.warning("Google Sheets not available. Returning empty leaderboard.")
+        game_state['leaderboard'] = []
+        return
     try:
-        console.log(f"Updating leaderboard with data: {state['leaderboard']}")
-        ul = document.getElementById('leaderboard-list')
-        ul.innerHTML = ''
-        if not state['leaderboard']:
-            li = document.createElement('li')
-            li.textContent = 'No leaderboard data yet'
-            ul.appendChild(li)
-        else:
-            for username, wins in state['leaderboard']:
-                li = document.createElement('li')
-                li.textContent = f'{username}: {wins} wins'
-                ul.appendChild(li)
+        records = sheet.get_all_values()
+        app.logger.info(f"Fetched records from sheet: {records}")
+        leaderboard_dict = {}
+        for row in records[1:]:
+            if len(row) >= 2 and row[0] and row[1]:
+                username = row[0].strip()
+                try:
+                    wins = int(row[1])
+                    leaderboard_dict[username] = wins
+                except ValueError:
+                    continue
+        app.logger.info(f"Parsed leaderboard: {leaderboard_dict}")
+        game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
+        app.logger.info("Successfully loaded leaderboard from sheet")
     except Exception as e:
-        console.log(f"Error in update_leaderboard: {str(e)}")
+        app.logger.error(f"Failed to load leaderboard: {str(e)}")
+        game_state['leaderboard'] = []
 
-def play_win_sound(is_complete):
+# Update Leaderboard
+def update_leaderboard(username):
+    if not sheet:
+        app.logger.warning("Google Sheets not available. Skipping leaderboard update.")
+        return
     try:
-        audio = win_audio2 if is_complete else win_audio
-        if audio:
-            audio.currentTime = 0
-            audio.play()
+        records = sheet.get_all_values()
+        leaderboard_dict = {row[0]: int(row[1]) for row in records[1:] if len(row) >= 2 and row[0] and row[1]}
+        leaderboard_dict[username] = leaderboard_dict.get(username, 0) + 1
+        updated_records = [['Username', 'Wins']] + [[k, str(v)] for k, v in leaderboard_dict.items()]
+        sheet.clear()
+        sheet.update('A1', updated_records)
+        game_state['leaderboard'] = sorted(leaderboard_dict.items(), key=lambda x: x[1], reverse=True)
     except Exception as e:
-        console.log(f"Exception in play_win_sound: {str(e)}")
+        app.logger.error(f"Failed to update leaderboard: {str(e)}")
 
-def hide_win_text():
-    win_text = document.getElementById('win-announcement')
-    win_text.style.display = 'none'
+# Send State Update
+def send_state_update():
+    global last_event_timestamp
+    last_event_timestamp = time.time()
+    event = {
+        'type': 'state',
+        'state': game_state.copy(),
+        'event': {},
+        'timestamp': last_event_timestamp
+    }
+    app.logger.info(f"Sent state update event: {json.dumps(event)}")
+    event_queue.append(event)
 
-def trigger_confetti():
-    window.triggerConfetti()
+# Twitch Bot
+class Bot(commands.Bot):
+    def __init__(self):
+        super().__init__(token=BOT_TOKEN, prefix='!', initial_channels=CHANNELS, nick=BOT_NICK)
 
-def trigger_win_animation(piece_id, winner_name, prize, is_complete=False):
-    console.log(f"Triggering win animation: piece_id={piece_id}, winner={winner_name}, prize={prize}, is_complete={is_complete}")
-    try:
-        grid_canvas = document.getElementById('grid')
-        grid_rect = grid_canvas.getBoundingClientRect()
-        center_x = grid_rect.left + 175
-        center_y = grid_rect.top + 175
+    async def event_ready(self):
+        app.logger.info(f"Bot connected to Twitch! Nick: {self.nick}, Channels: {self.connected_channels}")
 
-        win_text = document.getElementById('win-announcement')
-        win_text.style.left = f"{center_x}px"
-        win_text.style.top = f"{center_y}px"
-
-        if is_complete:
-            win_text.textContent = f"Puzzle completed! Everyone wins {prize} NFTOKEN!"
-            win_text.classList.add('complete')
-            setTimeout(create_proxy(hide_win_text), 8000)
-        else:
-            win_text.textContent = f"Congrats! {winner_name} won {prize} NFTOKEN!"
-            win_text.classList.remove('complete')
-            setTimeout(create_proxy(hide_win_text), 5000)
-        win_text.style.display = 'block'
-        play_win_sound(is_complete)
-        trigger_confetti()
-    except Exception as e:
-        console.log(f"Error in trigger_win_animation: {str(e)}")
-
-def test_win_animation(event=None):
-    console.log("Testing win animation...")
-    trigger_win_animation(state['pieceId'], "TestUser", 50, False)
-
-def update_cooldown_timer(timestamp=None):
-    global last_timer_update, timer_value, cooldown_duration, animation_frame_id
-    try:
-        if document.hidden:
+    async def event_message(self, message):
+        if message.author.name.lower() == self.nick.lower():
             return
-        now = time.time()
-        elapsed = now - last_timer_update
-        timer_value -= elapsed
-        if timer_value <= 0:
-            timer_value = cooldown_duration
+        await self.handle_commands(message)
 
-        last_timer_update = now
-
-        timer_element = document.getElementById('cooldown-timer')
-        timer_element.textContent = f"{round(timer_value)}"
-
-        animation_frame_id = requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Error in update_cooldown_timer: {str(e)}")
-
-async def update_state(event_data):
-    global is_initial_render, cooldown_duration, timer_value, last_timer_update, last_processed_timestamp
-    timestamp = event_data.get('timestamp', 0)
-    if timestamp <= last_processed_timestamp:
-        console.log(f"Skipping duplicate event with timestamp: {timestamp}")
-        return
-    last_processed_timestamp = timestamp
-
-    console.log(f"Updating state: {json.dumps(event_data)}")
-    try:
-        old_piece_id = state['pieceId']
-        old_game_id = state['gameId']
-        old_cooldown = state['cooldownSeconds']
-        if 'state' in event_data:
-            new_state = event_data['state']
-            if 'pieces' in new_state:
-                state['pieces'] = new_state['pieces']
-            if 'guesses' in new_state:
-                state['guesses'] = new_state['guesses']
-            if 'leaderboard' in new_state:
-                state['leaderboard'] = new_state['leaderboard']
-            for key, value in new_state.items():
-                if key not in ['pieces', 'guesses', 'leaderboard']:
-                    state[key] = value
-
-        if state['gameId'] != old_game_id:
-            console.log(f"Game reset detected: old_game_id={old_game_id}, new_game_id={state['gameId']}, forcing full redraw")
-            is_initial_render = True
-
-        if state['cooldownSeconds'] != old_cooldown:
-            console.log(f"Cooldown changed: old={cooldown_duration}, new={state['cooldownSeconds']}")
-            cooldown_duration = state['cooldownSeconds']
-            timer_value = cooldown_duration
-            last_timer_update = time.time()
-            timer_element = document.getElementById('cooldown-timer')
-            timer_element.textContent = f"{round(timer_value)}"
-
-        new_image_url = state['current_image']
-        if new_image_url != puzzle_img_url:
-            console.log(f"Updating image to: {new_image_url}")
-            await update_image(new_image_url)
-
-        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-
-        event_type = event_data.get('type', 'unknown')
-        console.log(f"Event type: {event_type}")
-        if event_type == 'win':
-            winner = event_data['event'].get('winner', 'Unknown')
-            prize = event_data['event'].get('prize', 50)
-            piece_id = state.get('pieceId', 0)
-            trigger_win_animation(piece_id, winner, prize, False)
-        elif event_type == 'complete':
-            prize = event_data['event'].get('prize', 50)
-            piece_id = state.get('pieceId', 0)
-            trigger_win_animation(piece_id, 'Everyone', prize, True)
-    except Exception as e:
-        console.log(f"Error in update_state: {str(e)}")
-
-async def init():
-    global is_initial_render
-    try:
-        console.log("Fetching initial game state...")
-        resp = await pyfetch('/game_state', timeout=10)
-        data = await resp.json()
-        console.log(f"Initial game state: {json.dumps(data)}")
-        event_data = {
-            "type": "init",
-            "state": data,
-            "event": {},
-            "timestamp": time.time()
-        }
-        await update_state(event_data)
-        await update_image(data['current_image'])
- Z        draw_grid()
-        draw_side_piece()
-        update_leaderboard()
-        console.log("Starting cooldown timer...")
-        if not document.hidden:
-            requestAnimationFrame(create_proxy(update_cooldown_timer))
-    except Exception as e:
-        console.log(f"Init error: {str(e)}")
-        draw_grid()
-        draw_side_piece()
-        document.getElementById('error-message').textContent = "Failed to initialize game. Please refresh.";
-        document.getElementById('error-message').style.display = 'block'
-
-async def listen_sse():
-    try:
-        console.log("Connecting to SSE stream...")
-        es = EventSource.new('/events')
-        def on_message(event):
-            try:
-                data = json.loads(event.data)
-                console.log(f"SSE event received: {json.dumps(data)}")
-                event_data = {
-                    "type": data.get('type', 'unknown'),
-                    "state": data.get('state', {}),
-                    "event": data.get('event', {}),
-                    "timestamp": data.get('timestamp', time.time())
+    @commands.command()
+    async def g(self, message):
+        username = message.author.name.lower()
+        guess = message.content.split(' ', 1)[1].strip().upper() if ' ' in message.content else None
+        if not guess or len(guess) < 2 or guess[0] not in 'ABCDE' or not guess[1:].isdigit() or int(guess[1:]) < 1 or int(guess[1:]) > 5:
+            await message.channel.send(f"@{username} Invalid coordinate! Use !g <coordinate> (e.g., !g A1)")
+            return
+        row = ord(guess[0]) - 65
+        col = int(guess[1:]) - 1
+        section = row * 5 + col
+        natural_section = game_state['natural_section']
+        if guess in game_state['pieces']:
+            await message.channel.send(f"@{username} That spot is already revealed!")
+            return
+        if guess in game_state['guesses'] and game_state['guesses'][guess] == 'miss':
+            await message.channel.send(f"@{username} You already guessed that spot!")
+            return
+        game_state['guesses'][guess] = 'miss'
+        if section == natural_section:
+            game_state['pieces'][guess] = natural_section
+            prize = random.randint(game_state['minPrize'], game_state['maxPrize'])
+            await message.channel.send(f"@{username} found a piece at {guess}! You won {prize} NFTOKEN!")
+            update_leaderboard(username)
+            event = {
+                'type': 'win',
+                'state': game_state.copy(),
+                'event': {'winner': username, 'prize': prize},
+                'timestamp': time.time()
+            }
+            event_queue.append(event)
+            game_state['current_piece'] += 1
+            game_state['pieceId'] += 1
+            if game_state['current_piece'] >= 25:
+                prize = random.randint(game_state['minPrize'], game_state['maxPrize'])
+                await message.channel.send(f"Puzzle completed! Everyone wins {prize} NFTOKEN!")
+                event = {
+                    'type': 'complete',
+                    'state': game_state.copy(),
+                    'event': {'prize': prize},
+                    'timestamp': time.time()
                 }
-                asyncio.ensure_future(update_state(event_data))
-            except Exception as e:
-                console.log(f"Error processing SSE event: {str(e)}")
+                event_queue.append(event)
+                init_game()
+            else:
+                game_state['natural_section'] = game_state['sectionMapping'][str(game_state['current_piece'])]
+                send_state_update()
+        else:
+            await message.channel.send(f"@{username} guessed {guess} - no piece there!")
+            send_state_update()
 
-        es.onmessage = create_proxy(on_message)
-        es.onerror = create_proxy(lambda _: console.log("SSE connection error, reconnecting..."))
+# Flask Routes
+@app.route('/')
+def index():
+    app.logger.info("Rendering index.html version 2025-05-16-v1")
+    try:
+        csp = (
+            "default-src 'self' https://cdn.jsdelivr.net; "
+            "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+            "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; "
+            "img-src 'self' https://gateway.pinata.cloud data:; "
+            "worker-src 'self' blob:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+        app.logger.info(f"Applying CSP: {csp}")
+        response = make_response(render_template('index.html'))
+        response.headers['Content-Security-Policy'] = csp
+        # Remove any conflicting headers
+        response.headers.pop('X-Content-Security-Policy', None)
+        response.headers.pop('X-WebKit-CSP', None)
+        return response
     except Exception as e:
-        console.log(f"SSE error: {str(e)}, retrying in 5s")
-        await asyncio.sleep(5)
-        asyncio.ensure_future(listen_sse())
+        app.logger.error(f"Failed to render index.html: {str(e)}")
+        return "Error rendering page", 500
 
-def start_game(event=None):
-    console.log("Starting game...")
-    document.getElementById('start-button').style.display = 'none'
-    document.getElementById('test-win-button').style.display = 'block'
-    document.querySelector('.container').style.display = 'flex'
-    document.getElementById('error-message').style.display = 'none'
-    asyncio.ensure_future(init())
-    asyncio.ensure_future(listen_sse())
+@app.route('/game_state')
+def get_game_state():
+    load_leaderboard()
+    app.logger.info(f"Returning game state with current_image: {game_state['current_image']}")
+    return jsonify(game_state)
 
-document.getElementById('start-button').addEventListener('click', create_proxy(start_game))
-document.getElementById('test-win-button').addEventListener('click', create_proxy(test_win_animation))
-    </script>
-</body>
-</html>
+@app.route('/events')
+def events():
+    def stream():
+        while True:
+            if event_queue:
+                event = event_queue.pop(0)
+                yield f"data: {json.dumps(event)}\n\n"
+            time.sleep(0.1)
+    return Response(stream(), mimetype='text/event-stream')
+
+# Start Twitch Bot
+def run_bot():
+    global bot
+    if not BOT_TOKEN:
+        app.logger.error("Cannot start Twitch bot: TWITCH_BOT_TOKEN is not set")
+        return
+    app.logger.info("Starting Twitch bot...")
+    time.sleep(5)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    bot = Bot()
+    try:
+        bot.run()
+    except Exception as e:
+        app.logger.error(f"Twitch bot failed: {str(e)}")
+    finally:
+        loop.close()
+
+if __name__ == '__main__':
+    app.logger.info("Main script starting")
+    init_puzzle_images()
+    init_game()
+    load_leaderboard()
+    Thread(target=run_bot, daemon=True).start()
+    app.logger.info("Starting Flask on port 10000 with hypercorn")
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
+    config = Config()
+    config.bind = ["0.0.0.0:10000"]
+    asyncio.run(serve(app, config))
