@@ -3,12 +3,11 @@ import json
 import os
 import random
 import time
-from datetime import datetime, timedelta
 from threading import Thread
 
 import gspread
 import requests
-from flask import Flask, Response, jsonify, render_template, request, make_response
+from flask import Flask, Response, jsonify, render_template, make_response
 from flask_cors import CORS
 from google.oauth2.service_account import Credentials
 from twitchio.ext import commands
@@ -17,17 +16,18 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-04-17-v3")
+app.logger.info("Running main.py version 2025-05-13-v2")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
 
 # Twitch Bot Configuration
 BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
+BOT_NICK = 'break__bot'
 app.logger.info(f"TWITCH_BOT_TOKEN is set: {'True' if BOT_TOKEN else 'False'}")
 if not BOT_TOKEN:
     app.logger.warning("TWITCH_BOT_TOKEN not set. Bot functionality will be disabled.")
-CHANNELS = ['nftopia']
+CHANNELS = ['ConsumerBreak']
 bot = None
 
 # Game State
@@ -71,32 +71,39 @@ if credentials_json:
 else:
     app.logger.warning("GOOGLE_CREDENTIALS not set. Leaderboard functionality will be disabled.")
 
-# Initialize Puzzle Images
+# Initialize Puzzle Images (IPFS)
 def init_puzzle_images():
     global puzzle_images, image_index
-    puzzle_images = []
-    i = 1
-    while True:
-        image_name = f"puzzle{i:02d}_00000.png"
-        url = f"https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/{image_name}"
-        response = requests.head(url)
-        app.logger.info(f"Checking image {image_name}: HTTP Status {response.status_code}")
-        if response.status_code == 200:
-            puzzle_images.append(url)
-            app.logger.info(f"Found puzzle image: {image_name}")
-        else:
-            app.logger.info(f"No more puzzle images found after {image_name}, stopping at {len(puzzle_images)} puzzles")
-            break
-        i += 1
+    # Replace these with your actual IPFS CIDs
+    ipfs_base_url = "https://gateway.pinata.cloud/ipfs/"
+    ipfs_cids = [
+        "bafybeice6fyptk5efjq63v5pci5whoqzhn47gwpssgd5g7kowmwmeq3buq",  # Replace with CID for puzzle01_00000.png
+        "bafybeicgmjfdclavzgt6wchopfnentwvw6c2jj7rk4jv4tbt5uoow7bmcy",  # Replace with CID for puzzle02_00000.png
+        "bafybeib5pg5el6whrqot3ap23amm6vhzx2n3ukjuac4kvznjornzy5iapq",  # Replace with CID for puzzle03_00000.png
+        "bafybeihyxddn2p6ymdqa6qtujbphtcg6sftnkjmgp5lxiahl2szirj56ji",  # Replace with CID for puzzle04_00000.png
+        "bafybeidkmchhllfiyuuamyrwfnh7kqomfo6mrrqrmfxvabqk5c4uakgcia",  # Replace with CID for puzzle05_00000.png
+        "bafybeic67y5b6iijp3tgt6twilxk2iwlh3owlgpwitq7xravdbcv7jojw4",  # Replace with CID for puzzle06_00000.png
+        "bafybeigvfq3g6lgazhas6ahq4xt27udj35p7mgndqplldydhz5c3327rau",  # Replace with CID for puzzle07_00000.png
+        "bafkreichboyu3k7z7qfuxgal22hnjhc3nopll7c7bhmdwv366gz7q6ymqq",  # Replace with CID for puzzle08_00000.png
+        "bafkreifo4kqi53fv5qye7rcijgor53mihtfp2lt5afw76sqivotth7linu",  # Replace with CID for puzzle09_00000.png
+        # Add more CIDs as needed
+    ]
+    puzzle_images = [f"{ipfs_base_url}{cid}" for cid in ipfs_cids]
+    
     app.logger.info(f"Initialized with {len(puzzle_images)} puzzle images: {puzzle_images}")
     if puzzle_images:
         game_state['current_image'] = puzzle_images[0]
         app.logger.info(f"Set initial current_image to: {game_state['current_image']}")
         image_index = 0
+    else:
+        app.logger.error("No puzzle images found. Game will not function correctly.")
 
 # Initialize Game
 def init_game():
     global image_index
+    if not puzzle_images:
+        app.logger.error("No puzzle images available. Cannot initialize game.")
+        return
     game_state['gameId'] += 1
     app.logger.info(f"Initializing puzzle for game ID {game_state['gameId']}")
     game_state['pieces'] = {}
@@ -179,7 +186,7 @@ def send_state_update():
 # Twitch Bot
 class Bot(commands.Bot):
     def __init__(self):
-        super().__init__(token=BOT_TOKEN, prefix='!', initial_channels=CHANNELS)
+        super().__init__(token=BOT_TOKEN, prefix='!', initial_channels=CHANNELS, nick=BOT_NICK)
 
     async def event_ready(self):
         app.logger.info(f"Bot connected to Twitch! Nick: {self.nick}, Channels: {self.connected_channels}")
@@ -242,16 +249,20 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-04-17-v3")
+    app.logger.info("Rendering index.html version 2025-05-13-v2")
     try:
         response = make_response(render_template('index.html'))
         response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; "
+            "default-src 'self' https://pyscript.net https://cdn.jsdelivr.net; "
             "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
             "style-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' ws: wss:; "
-            "img-src 'self' https://cdn.glitch.global;"
+            "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://pyscript.net https://gateway.pinata.cloud; "
+            "img-src 'self' https://gateway.pinata.cloud data:; "
+            "worker-src 'self' blob:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
         )
         return response
     except Exception as e:
