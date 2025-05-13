@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-05-13-v2")
+app.logger.info("Running main.py version 2025-05-14-v2")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
@@ -74,19 +74,15 @@ else:
 # Initialize Puzzle Images (IPFS)
 def init_puzzle_images():
     global puzzle_images, image_index
-    # Replace these with your actual IPFS CIDs
     ipfs_base_url = "https://gateway.pinata.cloud/ipfs/"
     ipfs_cids = [
-        "bafybeice6fyptk5efjq63v5pci5whoqzhn47gwpssgd5g7kowmwmeq3buq",  # Replace with CID for puzzle01_00000.png
-        "bafybeicgmjfdclavzgt6wchopfnentwvw6c2jj7rk4jv4tbt5uoow7bmcy",  # Replace with CID for puzzle02_00000.png
-        "bafybeib5pg5el6whrqot3ap23amm6vhzx2n3ukjuac4kvznjornzy5iapq",  # Replace with CID for puzzle03_00000.png
-        "bafybeihyxddn2p6ymdqa6qtujbphtcg6sftnkjmgp5lxiahl2szirj56ji",  # Replace with CID for puzzle04_00000.png
-        "bafybeidkmchhllfiyuuamyrwfnh7kqomfo6mrrqrmfxvabqk5c4uakgcia",  # Replace with CID for puzzle05_00000.png
-        "bafybeic67y5b6iijp3tgt6twilxk2iwlh3owlgpwitq7xravdbcv7jojw4",  # Replace with CID for puzzle06_00000.png
-        "bafybeigvfq3g6lgazhas6ahq4xt27udj35p7mgndqplldydhz5c3327rau",  # Replace with CID for puzzle07_00000.png
-        "bafkreichboyu3k7z7qfuxgal22hnjhc3nopll7c7bhmdwv366gz7q6ymqq",  # Replace with CID for puzzle08_00000.png
-        "bafkreifo4kqi53fv5qye7rcijgor53mihtfp2lt5afw76sqivotth7linu",  # Replace with CID for puzzle09_00000.png
-        # Add more CIDs as needed
+        "bafybeice6fyptk5efjq63v5pci5whoqzhn47gwpssgd5g7kowmwmeq3buq",  # puzzle01_00000.png
+        "bafybeicgmjfdclavzgt6wchopfnentwvw6c2jj7rk4jv4tbt5uoow7bmcy",  # puzzle02_00000.png
+        "bafybeib5pg5el6whrqot3ap23amm6vhzx2n3ukjuac4kvznjornzy5iapq",  # puzzle03_00000.png
+        "bafybeihyxddn2p6ymdqa6qtujbphtcg6sftnkjmgp5lxiahl2szirj56ji",  # puzzle04_00000.png
+        "bafybeidkmchhllfiyuuamyrwfnh7kqomfo6mrrqrmfxvabqk5c4uakgcia",  # puzzle05_00000.png
+        "bafybeic67y5b6iijp3tgt6twilxk2iwlh3owlgpwitq7xravdbcv7jojw4",  # puzzle06_00000.png
+        "bafybeigvfq3g6lgazhas6ahq4xt27udj35p7mgndqplldydhz5c3327rau"   # puzzle07_00000.png
     ]
     puzzle_images = [f"{ipfs_base_url}{cid}" for cid in ipfs_cids]
     
@@ -249,10 +245,9 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-05-13-v2")
+    app.logger.info("Rendering index.html version 2025-05-14-v2")
     try:
-        response = make_response(render_template('index.html'))
-        response.headers['Content-Security-Policy'] = (
+        csp = (
             "default-src 'self' https://pyscript.net https://cdn.jsdelivr.net; "
             "script-src 'self' https://pyscript.net https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
             "style-src 'self' https://pyscript.net https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; "
@@ -264,6 +259,9 @@ def index():
             "base-uri 'self'; "
             "form-action 'self'"
         )
+        app.logger.info(f"Applying CSP: {csp}")
+        response = make_response(render_template('index.html'))
+        response.headers['Content-Security-Policy'] = csp
         return response
     except Exception as e:
         app.logger.error(f"Failed to render index.html: {str(e)}")
