@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-05-16-v1")
+app.logger.info("Running main.py version 2025-05-17-v1")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
@@ -24,16 +24,15 @@ app.logger.info("Listing environment variable keys: %s", list(os.environ.keys())
 # Middleware to enforce CSP and log headers
 @app.after_request
 def apply_csp(response):
+    # Try minimal CSP to test Render override
     csp = (
-        "default-src 'self' https://cdn.jsdelivr.net; "
+        "default-src 'self'; "
         "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
         "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; "
         "img-src 'self' https://gateway.pinata.cloud data:; "
         "worker-src 'self' blob:; "
-        "object-src 'none'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
+        "object-src 'none'"
     )
     response.headers['Content-Security-Policy'] = csp
     response.headers.pop('X-Content-Security-Policy', None)
@@ -266,7 +265,7 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-05-16-v1")
+    app.logger.info("Rendering index.html version 2025-05-17-v1")
     try:
         response = make_response(render_template('index.html'))
         return response
