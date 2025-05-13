@@ -16,10 +16,31 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-05-14-v1")
+app.logger.info("Running main.py version 2025-05-15-v1")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
+
+# Middleware to enforce CSP and log headers
+@app.after_request
+def apply_csp(response):
+    csp = (
+        "default-src 'self' https://cdn.jsdelivr.net; "
+        "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; "
+        "img-src 'self' https://gateway.pinata.cloud data:; "
+        "worker-src 'self' blob:; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+    response.headers['Content-Security-Policy'] = csp
+    response.headers.pop('X-Content-Security-Policy', None)
+    response.headers.pop('X-WebKit-CSP', None)
+    app.logger.info(f"Response headers: {response.headers}")
+    return response
 
 # Twitch Bot Configuration
 BOT_TOKEN = os.getenv('TWITCH_BOT_TOKEN')
@@ -245,26 +266,9 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-05-14-v1")
+    app.logger.info("Rendering index.html version 2025-05-15-v1")
     try:
-        csp = (
-            "default-src 'self' https://cdn.jsdelivr.net; "
-            "script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; "
-            "img-src 'self' https://gateway.pinata.cloud data:; "
-            "worker-src 'self' blob:; "
-            "object-src 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
-        app.logger.info(f"Applying CSP: {csp}")
         response = make_response(render_template('index.html'))
-        response.headers['Content-Security-Policy'] = csp
-        # Remove any conflicting headers
-        response.headers.pop('X-Content-Security-Policy', None)
-        response.headers.pop('X-WebKit-CSP', None)
         return response
     except Exception as e:
         app.logger.error(f"Failed to render index.html: {str(e)}")
