@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <!-- index.html version 2025-05-13-v2 -->
+    <!-- index.html version 2025-05-14-v2 -->
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
     <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/releases/2024.11.2/core.css">
     <script id="pyscript-js" defer src="https://pyscript.net/releases/2024.11.2/core.js" type="module"></script>
@@ -229,7 +229,7 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        console.log("Page loaded, initializing JavaScript (version 2025-05-13-v2)...");
+        console.log("Page loaded, initializing JavaScript (version 2025-05-14-v2)...");
 
         // PyScript fallback
         const pyscriptJs = document.getElementById('pyscript-js');
@@ -246,6 +246,13 @@
                     document.getElementById('loading-message').style.display = 'none';
                 }
             }, 5000);
+        };
+
+        // Test PyScript CSS loading
+        const pyscriptCss = document.getElementById('pyscript-css');
+        pyscriptCss.onerror = () => {
+            console.log("PyScript CSS failed to load, trying jsdelivr.net...");
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.css";
         };
 
         // Initialize canvas
@@ -370,7 +377,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation * Math.PI / 180);
+                    confettiCtx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -420,7 +427,7 @@ from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
 
-console.log("PyScript loaded, starting Python initialization (version 2025-05-13-v2)...")
+console.log("PyScript loaded, starting Python initialization (version 2025-05-14-v2)...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
@@ -461,8 +468,8 @@ is_initial_render = True
 win_audio = None
 win_audio2 = None
 try:
-    win_audio = Audio.new('https://gateway.pinata.cloud/ipfs/bafkreichboyu3k7z7qfuxgal22hnjhc3nopll7c7bhmdwv366gz7q6ymqq')  # Replace with your audio CID
-    win_audio2 = Audio.new('https://gateway.pinata.cloud/ipfs/bafkreifo4kqi53fv5qye7rcijgor53mihtfp2lt5afw76sqivotth7linu')  # Replace with your audio CID
+    win_audio = Audio.new('https://gateway.pinata.cloud/ipfs/bafkreichboyu3k7z7qfuxgal22hnjhc3nopll7c7bhmdwv366gz7q6ymqq')  # win_sound.mp3
+    win_audio2 = Audio.new('https://gateway.pinata.cloud/ipfs/bafkreifo4kqi53fv5qye7rcijgor53mihtfp2lt5afw76sqivotth7linu')  # win_sound2.mp3
     console.log("Audio preloaded successfully")
 except Exception as e:
     console.log(f"Failed to preload audio: {str(e)}")
@@ -843,7 +850,7 @@ async def init():
         }
         await update_state(event_data)
         await update_image(data['current_image'])
-        draw_grid()
+ Z        draw_grid()
         draw_side_piece()
         update_leaderboard()
         console.log("Starting cooldown timer...")
