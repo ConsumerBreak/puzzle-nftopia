@@ -6,10 +6,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <!-- index.html version 2025-04-17-v3 -->
+    <!-- index.html version 2025-05-13-v2 -->
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
-    <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/latest/core.css">
-    <script id="pyscript-js" defer src="https://pyscript.net/latest/core.js" type="module"></script>
+    <link id="pyscript-css" rel="stylesheet" href="https://pyscript.net/releases/2024.11.2/core.css">
+    <script id="pyscript-js" defer src="https://pyscript.net/releases/2024.11.2/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -229,15 +229,15 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        console.log("Page loaded, initializing JavaScript (version 2025-04-17-v3)...");
+        console.log("Page loaded, initializing JavaScript (version 2025-05-13-v2)...");
 
         // PyScript fallback
         const pyscriptJs = document.getElementById('pyscript-js');
         pyscriptJs.onerror = () => {
             console.log("pyscript.net failed, trying jsdelivr.net...");
-            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.1/dist/core.js";
+            pyscriptJs.src = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.js";
             const pyscriptCss = document.getElementById('pyscript-css');
-            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2023.11.1/dist/core.css";
+            pyscriptCss.href = "https://cdn.jsdelivr.net/npm/pyscript@2024.11.2/dist/core.css";
             setTimeout(() => {
                 if (!window.PyScript) {
                     console.error("PyScript failed to load from both CDNs");
@@ -370,7 +370,7 @@
                 } else if (p.shape === 'square') {
                     confettiCtx.save();
                     confettiCtx.translate(p.x, p.y);
-                    confettiCtx.rotate(p.rotation * Math.PI / 180);
+                    ctx.rotate(p.rotation * Math.PI / 180);
                     confettiCtx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2);
                     confettiCtx.restore();
                 } else if (p.shape === 'star') {
@@ -420,7 +420,7 @@ from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
 
-console.log("PyScript loaded, starting Python initialization (version 2025-04-17-v3)...")
+console.log("PyScript loaded, starting Python initialization (version 2025-05-13-v2)...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
@@ -461,8 +461,8 @@ is_initial_render = True
 win_audio = None
 win_audio2 = None
 try:
-    win_audio = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound.mp3')
-    win_audio2 = Audio.new('https://cdn.glitch.global/509f3353-63f2-4aa2-b309-108c09d4235e/win_sound2.mp3')
+    win_audio = Audio.new('https://gateway.pinata.cloud/ipfs/QmAudioCID1')  # Replace with your audio CID
+    win_audio2 = Audio.new('https://gateway.pinata.cloud/ipfs/QmAudioCID2')  # Replace with your audio CID
     console.log("Audio preloaded successfully")
 except Exception as e:
     console.log(f"Failed to preload audio: {str(e)}")
