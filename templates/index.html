@@ -6,9 +6,9 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; img-src 'self' https://gateway.pinata.cloud data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
-    <!-- index.html version 2025-05-16-v1 -->
-    <script id="pyscript-js" defer src="https://cdn.jsdelivr.net/npm/pyscript@2024.10.1/dist/core.js" type="module"></script>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://gateway.pinata.cloud; img-src 'self' https://gateway.pinata.cloud data:; worker-src 'self' blob:; object-src 'none'">
+    <!-- index.html version 2025-05-17-v1 -->
+    <script id="pyscript-js" defer src="https://cdn.jsdelivr.net/npm/pyscript@2024.9.1/dist/core.js" type="module"></script>
     <style>
         body {
             background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
@@ -228,7 +228,7 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="error-message"></div>
     <script>
-        console.log("Page loaded, index.html version 2025-05-16-v1");
+        console.log("Page loaded, index.html version 2025-05-17-v1");
 
         // Log active CSP
         const metaCsp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
@@ -243,6 +243,13 @@
                 console.log("CSP from response headers:", csp || "None");
                 if (!csp || !csp.includes('unsafe-eval')) {
                     console.warn("CSP missing unsafe-eval, PyScript may fail");
+                    document.getElementById('error-message').textContent = "Security policy error: Game may not load. Contact support or try refreshing.";
+                    document.getElementById('error-message').style.display = 'block';
+                }
+                // Check for proxy headers
+                const cfRay = response.headers.get('CF-RAY');
+                if (cfRay) {
+                    console.log("Cloudflare detected, CF-RAY:", cfRay);
                 }
             })
             .catch(err => console.error("Failed to fetch CSP:", err));
@@ -431,7 +438,7 @@ from pyodide.http import pyfetch
 from pyodide.ffi import create_proxy
 import time
 
-console.log("PyScript loaded, starting Python initialization (version 2025-05-16-v1)...")
+console.log("PyScript loaded, starting Python initialization (version 2025-05-17-v1)...")
 
 # Canvas setup
 grid_canvas = document.getElementById('grid')
