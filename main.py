@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Version Marker
-app.logger.info("Running main.py version 2025-05-14-v2")
+app.logger.info("Running main.py version 2025-05-15-v1")
 
 # Debug Environment Variables
 app.logger.info("Listing environment variable keys: %s", list(os.environ.keys()))
@@ -245,7 +245,7 @@ class Bot(commands.Bot):
 # Flask Routes
 @app.route('/')
 def index():
-    app.logger.info("Rendering index.html version 2025-05-14-v2")
+    app.logger.info("Rendering index.html version 2025-05-15-v1")
     try:
         csp = (
             "default-src 'self' https://pyscript.net https://cdn.jsdelivr.net; "
@@ -262,6 +262,9 @@ def index():
         app.logger.info(f"Applying CSP: {csp}")
         response = make_response(render_template('index.html'))
         response.headers['Content-Security-Policy'] = csp
+        # Ensure no conflicting headers
+        response.headers['X-Content-Security-Policy'] = csp
+        response.headers['X-WebKit-CSP'] = csp
         return response
     except Exception as e:
         app.logger.error(f"Failed to render index.html: {str(e)}")
